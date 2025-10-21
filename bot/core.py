@@ -34,33 +34,29 @@ session_manager = SessionManager(db)
 temporary_channels = set()
 channel_owners = {}
 
-# Guild whitelist from settings
 ALLOWED_GUILDS = settings.ALLOWED_GUILDS
 
 @bot.event
 async def on_guild_join(guild):
-    """Automatically leave guilds that aren't whitelisted"""
     if guild.id not in ALLOWED_GUILDS:
-        print(f"🚫 Bot joined unauthorized guild: {guild.name} (ID: {guild.id})")
+        print(f"Bot joined unauthorized guild: {guild.name} (ID: {guild.id})")
         print(f"Leaving guild: {guild.name}")
         await guild.leave()
         return
     
-    print(f"✅ Bot joined authorized guild: {guild.name} (ID: {guild.id})")
+    print(f"Bot joined authorized guild: {guild.name} (ID: {guild.id})")
 
 @bot.event
 async def on_ready():
-    """Check and leave any unauthorized guilds on startup"""
-    print(f"🤖 Bot is ready! Logged in as {bot.user}")
+    print(f"Bot is ready! Logged in as {bot.user}")
     
-    # Check all current guilds
     for guild in bot.guilds:
         if guild.id not in ALLOWED_GUILDS:
-            print(f"🚫 Found unauthorized guild: {guild.name} (ID: {guild.id})")
+            print(f"Found unauthorized guild: {guild.name} (ID: {guild.id})")
             print(f"Leaving guild: {guild.name}")
             await guild.leave()
         else:
-            print(f"✅ Authorized guild: {guild.name} (ID: {guild.id})")
+            print(f"Authorized guild: {guild.name} (ID: {guild.id})")
 
 @bot.event
 async def on_voice_state_update(member, before, after):
