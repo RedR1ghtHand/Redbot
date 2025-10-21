@@ -1,0 +1,12 @@
+version: '3.8'
+
+services:
+  # Discord Bot
+  redbot:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: redbot-bot
+    restart: unless-stopped
+    volumes:
+      - ./logs:/app/logs

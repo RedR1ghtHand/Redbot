@@ -34,9 +34,37 @@ session_manager = SessionManager(db)
 temporary_channels = set()
 channel_owners = {}
 
+# Guild whitelist from settings
+ALLOWED_GUILDS = settings.ALLOWED_GUILDS
+
+@bot.event
+async def on_guild_join(guild):
+    """Automatically leave guilds that aren't whitelisted"""
+    if guild.id not in ALLOWED_GUILDS:
+        print(f"🚫 Bot joined unauthorized guild: {guild.name} (ID: {guild.id})")
+        print(f"Leaving guild: {guild.name}")
+        await guild.leave()
+        return
+    
+    print(f"✅ Bot joined authorized guild: {guild.name} (ID: {guild.id})")
+
+@bot.event
+async def on_ready():
+    """Check and leave any unauthorized guilds on startup"""
+    print(f"🤖 Bot is ready! Logged in as {bot.user}")
+    
+    # Check all current guilds
+    for guild in bot.guilds:
+        if guild.id not in ALLOWED_GUILDS:
+            print(f"🚫 Found unauthorized guild: {guild.name} (ID: {guild.id})")
+            print(f"Leaving guild: {guild.name}")
+            await guild.leave()
+        else:
+            print(f"✅ Authorized guild: {guild.name} (ID: {guild.id})")
+
 @bot.event
 async def on_voice_state_update(member, before, after):
-    if after.channel and after.channel.id == int(settings.CREATE_CHANNEL_ID):
+    if after.channel and after.channel.id in settings.CREATE_CHANNEL_IDS:
         logging.info(f"{member} joined the create channel. Creating new VC...")
         guild = member.guild
         category = after.channel.category
@@ -83,7 +111,7 @@ async def on_voice_state_update(member, before, after):
             logging.error(f"Failed to send control panel message to {new_channel.id}: {e}")
 
     if before.channel and before.channel != after.channel:
-        if before.channel.id not in (int(settings.CREATE_CHANNEL_ID),):
+        if before.channel.id not in settings.CREATE_CHANNEL_IDS:
             await session_manager.update_session(before.channel.id)
 
             if before.channel.id in temporary_channels and len(before.channel.members) == 0:
