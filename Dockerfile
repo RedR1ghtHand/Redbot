@@ -18,4 +18,4 @@ RUN poetry install --no-root
 COPY . .
 RUN cp .env.example .env
 
-CMD ["python", "-m", "bot.core"]
+CMD ["python", "main.py"]

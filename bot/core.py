@@ -1,7 +1,4 @@
 import logging
-
-logging.basicConfig(level=logging.DEBUG)
-
 import random
 from datetime import timedelta
 
@@ -13,7 +10,7 @@ from pymongo import DESCENDING
 from database import SessionManager
 from database.connection import db
 from database.models import Session
-from utils.get_project_settings import get_settings
+from utils import get_settings
 
 from .books_dict import books_dict
 from .ui.channel_control_view import ChannelControlView
@@ -39,24 +36,24 @@ ALLOWED_GUILDS = settings.ALLOWED_GUILDS
 @bot.event
 async def on_guild_join(guild):
     if guild.id not in ALLOWED_GUILDS:
-        print(f"Bot joined unauthorized guild: {guild.name} (ID: {guild.id})")
-        print(f"Leaving guild: {guild.name}")
+        logging.info(f"Bot joined unauthorized guild: {guild.name} (ID: {guild.id})")
+        logging.info(f"Leaving guild: {guild.name}")
         await guild.leave()
         return
     
-    print(f"Bot joined authorized guild: {guild.name} (ID: {guild.id})")
+    logging.info(f"Bot joined authorized guild: {guild.name} (ID: {guild.id})")
 
 @bot.event
 async def on_ready():
-    print(f"Bot is ready! Logged in as {bot.user}")
+    logging.info(f"Bot is ready! Logged in as {bot.user}")
     
     for guild in bot.guilds:
         if guild.id not in ALLOWED_GUILDS:
-            print(f"Found unauthorized guild: {guild.name} (ID: {guild.id})")
-            print(f"Leaving guild: {guild.name}")
+            logging.info(f"Found unauthorized guild: {guild.name} (ID: {guild.id})")
+            logging.info(f"Leaving guild: {guild.name}")
             await guild.leave()
         else:
-            print(f"Authorized guild: {guild.name} (ID: {guild.id})")
+            logging.info(f"Authorized guild: {guild.name} (ID: {guild.id})")
 
 @bot.event
 async def on_voice_state_update(member, before, after):
@@ -112,6 +109,7 @@ async def on_voice_state_update(member, before, after):
 
             if before.channel.id in temporary_channels and len(before.channel.members) == 0:
                 await session_manager.update_and_end_session(before.channel.id)
+                logging.info(F"Session '{before.channel.name}' ended. Entry saved to the database")
                 await before.channel.delete(reason="Temporary VC empty")
                 temporary_channels.remove(before.channel.id)
                 channel_owners.pop(before.channel.id, None)
@@ -172,4 +170,5 @@ async def top_sessions(ctx):
     await ctx.send(embed=embed)
 
 
-bot.run(settings.BOT_TOKEN)
+def run_bot():
+    bot.run(settings.BOT_TOKEN)

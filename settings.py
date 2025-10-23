@@ -4,6 +4,7 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
+LOG_LEVEL = os.getenv("LOG_LEVEL", "WARNING").upper()
 
 BOT_TOKEN = os.getenv("BOT_TOKEN")
 CREATE_CHANNEL_IDS = [int(x.strip()) for x in os.getenv("CREATE_CHANNEL_IDS", "").split(",") if x.strip()]
