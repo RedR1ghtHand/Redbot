@@ -129,7 +129,7 @@ async def show_books(ctx):
 
 
 @bot.command(name="top")
-async def top_sessions(ctx, limit: int):
+async def top_sessions(ctx, limit: int = 10):
     limit = limit if limit <= 10 else 10
     sessions = await session_manager.longest_sessions_all_time(limit=limit)
 
