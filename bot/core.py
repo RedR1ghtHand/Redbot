@@ -5,7 +5,6 @@ from datetime import timedelta
 import discord
 from discord.ext import commands
 from motor.motor_asyncio import AsyncIOMotorClient
-from pymongo import DESCENDING
 
 from database import SessionManager
 from database.connection import db
@@ -13,7 +12,7 @@ from database.models import Session
 from utils import get_settings
 
 from .books_dict import books_dict
-from .ui.channel_control_view import ChannelControlView
+from .ui.views import ChannelControlView
 
 settings = get_settings()
 
@@ -24,14 +23,14 @@ intents.voice_states = True
 intents.presences = True  
 intents.message_content = True
 
-bot = commands.Bot(command_prefix="r!", intents=intents)
-
+bot = commands.Bot(command_prefix="/", intents=intents)
 session_manager = SessionManager(db)
 
 temporary_channels = set()
 channel_owners = {}
 
 ALLOWED_GUILDS = settings.ALLOWED_GUILDS
+
 
 @bot.event
 async def on_guild_join(guild):
@@ -42,6 +41,7 @@ async def on_guild_join(guild):
         return
     
     logging.info(f"Bot joined authorized guild: {guild.name} (ID: {guild.id})")
+
 
 @bot.event
 async def on_ready():
@@ -54,6 +54,7 @@ async def on_ready():
             await guild.leave()
         else:
             logging.info(f"Authorized guild: {guild.name} (ID: {guild.id})")
+
 
 @bot.event
 async def on_voice_state_update(member, before, after):
@@ -98,7 +99,7 @@ async def on_voice_state_update(member, before, after):
             embed.set_footer(text=f"Owner: {member.display_name}", icon_url=member.display_avatar.url)
             embed.timestamp = discord.utils.utcnow()
 
-            await new_channel.send(embed=embed, view=ChannelControlView(new_channel, member))
+            await new_channel.send(embed=embed,view=ChannelControlView(new_channel, member, session_manager))
             logging.info(f"Sent control panel embed to {new_channel.name}")
         except Exception as e:
             logging.error(f"Failed to send control panel message to {new_channel.id}: {e}")
@@ -114,7 +115,9 @@ async def on_voice_state_update(member, before, after):
                 temporary_channels.remove(before.channel.id)
                 channel_owners.pop(before.channel.id, None)
 
+
 @bot.command()
+@commands.has_permissions(administrator=True)
 async def show_books(ctx):
     for name, data in books_dict.items():
         embed = discord.Embed(
@@ -124,22 +127,18 @@ async def show_books(ctx):
         embed.set_thumbnail(url=data["icon"])
         await ctx.send(embed=embed)
 
+
 @bot.command(name="top")
-async def top_sessions(ctx):
-    cursor = (
-        session_manager.collection
-        .find({"duration": {"$ne": None}})
-        .sort("duration", DESCENDING)
-        .limit(10)
-    )
-    sessions = [Session(**s) async for s in cursor]
+async def top_sessions(ctx, limit: int):
+    limit = limit if limit <= 10 else 10
+    sessions = await session_manager.longest_sessions_all_time(limit=limit)
 
     if not sessions:
         await ctx.send("No sessions found yet.")
         return
 
     embed = discord.Embed(
-        title="Top 10 Longest Voice Sessions",
+        title=f"Top {limit} Longest Voice Sessions",
         color=discord.Color.red()
     )
 
@@ -168,6 +167,17 @@ async def top_sessions(ctx):
     embed.description = description
 
     await ctx.send(embed=embed)
+
+
+@bot.command()
+@commands.has_permissions(administrator=True)
+async def clean_up_short_sessions(ctx, treshhold: int):
+    deleted_count = await session_manager.clean_up_short_sessions(treshhold=treshhold)
+
+    if not deleted_count:
+        await ctx.send(f"No sessions shorter than **{treshhold}**seconds found")
+    else:
+        await ctx.send(f"Cleaned up **{deleted_count}** sessions shorter than **{treshhold}**seconds")
 
 
 def run_bot():

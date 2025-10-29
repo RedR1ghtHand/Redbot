@@ -21,11 +21,16 @@ class Session(Base):
         self.is_ended = True
         self.mark_updated()
 
-    def duration_seconds(self) -> int:
-        if self.duration is not None:
-            return self.duration
+    def duration_seconds(self):
         end_time = self.updated_at if self.is_ended else datetime.now(timezone.utc)
-        delta = end_time - self.created_at
+        created_at = self.created_at
+
+        if created_at.tzinfo is None:
+            created_at = created_at.replace(tzinfo=timezone.utc)
+        if end_time.tzinfo is None:
+            end_time = end_time.replace(tzinfo=timezone.utc)
+
+        delta = end_time - created_at
         return int(delta.total_seconds())
 
     def duration_pretty(self) -> str:

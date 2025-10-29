@@ -1,6 +1,7 @@
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 from motor.motor_asyncio import AsyncIOMotorDatabase
+from pymongo import DESCENDING
 
 from database.models import Session
 
@@ -51,17 +52,33 @@ class SessionManager:
         )
         return result.modified_count > 0
         
+    async def update_channel_name(self, channel_id: int, new_name: str) -> bool:
+        result = await self.collection.update_one(
+            {"channel_id": channel_id, "is_ended": False},
+            {
+                "$set": {
+                    "channel_name": new_name,
+                    "updated_at": datetime.now(timezone.utc)
+                }
+            },
+        )
+        return result.modified_count > 0
 
     async def longest_sessions_all_time(self, limit: int = 10) -> list[Session]:
-        cursor = self.collection.find({"duration": {"$exists": True}}).sort("duration", -1).limit(limit)
+        cursor = self.collection.find({"duration": {"$ne": None}}).sort("duration", DESCENDING).limit(limit)
         return [Session(**s) async for s in cursor]
 
 
     async def longest_sessions_this_week(self, limit: int = 10) -> list[Session]:
-        from datetime import timedelta
         week_ago = datetime.now(timezone.utc) - timedelta(days=7)
         cursor = self.collection.find({
             "duration": {"$exists": True},
             "created_at": {"$gte": week_ago}
         }).sort("duration", -1).limit(limit)
         return [Session(**s) async for s in cursor]
+
+    async def clean_up_short_sessions(self, treshhold: int = 600) -> int:
+        query_filter = {"duration": {"$lte": treshhold}}
+        result = await self.collection.delete_many(query_filter, comment=f"Cleaning up all sessions shorter than {treshhold}seconds")
+        return result.deleted_count
+        

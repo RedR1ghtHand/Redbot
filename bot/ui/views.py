@@ -5,14 +5,15 @@ from .modals import RenameModal, SetLimitModal
 
 
 class ChannelControlView(ui.View):
-    def __init__(self, channel, owner):
+    def __init__(self, channel, owner, session_manager):
         super().__init__(timeout=None)
         self.channel = channel
         self.owner = owner
+        self.session_manager = session_manager
 
     @ui.button(label="📝", style=discord.ButtonStyle.primary)
     async def rename_button(self, interaction: Interaction, button: ui.Button):
-        await interaction.response.send_modal(RenameModal(self.channel, self.owner))
+        await interaction.response.send_modal(RenameModal(self.channel, self.owner, self.session_manager))
 
     @ui.button(label="👥+", style=discord.ButtonStyle.success)
     async def increase_limit(self, interaction: Interaction, button: ui.Button):

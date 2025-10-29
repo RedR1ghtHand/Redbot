@@ -1,13 +1,13 @@
-import discord
 from discord import Interaction, TextStyle, ui
 
 
 class RenameModal(ui.Modal, title="Rename Your Voice Channel"):
-    def __init__(self, channel, owner):
+    def __init__(self, channel, owner, session_manager):
         super().__init__()
         self.channel = channel
         self.owner = owner
- 
+        self.session_manager = session_manager
+
         self.name_input = ui.TextInput(
             label="New channel name",
             placeholder="Enter a name (1-100 chars)",
@@ -31,6 +31,8 @@ class RenameModal(ui.Modal, title="Rename Your Voice Channel"):
             return
 
         await self.channel.edit(name=new_name)
+        await self.session_manager.update_channel_name(self.channel.id, new_name)
+
         await interaction.response.send_message(
             f"Channel renamed to **{new_name}**!", ephemeral=True
         )
@@ -70,4 +72,3 @@ class SetLimitModal(ui.Modal, title="Set Voice Channel Limit"):
         await interaction.response.send_message(
             f"Channel limit set to {new_limit}.", ephemeral=True
         )
-        
