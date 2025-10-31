@@ -1,7 +1,9 @@
 from discord import Interaction, TextStyle, ui
 
+from utils import get_message
 
-class RenameModal(ui.Modal, title="Rename Your Voice Channel"):
+
+class RenameModal(ui.Modal, title=get_message("modals.rename.title")):
     def __init__(self, channel, owner, session_manager):
         super().__init__()
         self.channel = channel
@@ -9,8 +11,8 @@ class RenameModal(ui.Modal, title="Rename Your Voice Channel"):
         self.session_manager = session_manager
 
         self.name_input = ui.TextInput(
-            label="New channel name",
-            placeholder="Enter a name (1-100 chars)",
+            label=get_message("modals.rename.name_label"),
+            placeholder=get_message("modals.rename.name_placeholder"),
             max_length=100,
             style=TextStyle.short
         )
@@ -19,33 +21,33 @@ class RenameModal(ui.Modal, title="Rename Your Voice Channel"):
     async def on_submit(self, interaction: Interaction):
         if interaction.user.id != self.owner.id:
             await interaction.response.send_message(
-                "Only the channel owner can rename this VC!", ephemeral=True
+                get_message("modals.rename.msg_error_owner"), ephemeral=True
             )
             return
 
         new_name = self.name_input.value.strip()
         if not new_name:
             await interaction.response.send_message(
-                "Channel name cannot be empty.", ephemeral=True
+                get_message("modals.rename.msg_error_empty"), ephemeral=True
             )
             return
 
         await self.channel.edit(name=new_name)
         await self.session_manager.update_channel_name(self.channel.id, new_name)
-
         await interaction.response.send_message(
-            f"Channel renamed to **{new_name}**!", ephemeral=True
+            get_message("modals.rename.msg_success", new_name=new_name), ephemeral=True
         )
 
-class SetLimitModal(ui.Modal, title="Set Voice Channel Limit"):
+
+class SetLimitModal(ui.Modal, title=get_message("modals.set_limit.title")):
     def __init__(self, channel, owner):
         super().__init__()
         self.channel = channel
         self.owner = owner
 
         self.limit_input = ui.TextInput(
-            label="Enter limit",
-            placeholder="Must be a number 1-99(0 for unlimited)",
+            label=get_message("modals.set_limit.limit_label"),
+            placeholder=get_message("modals.set_limit.limit_placeholder"),
             style=TextStyle.short,
             max_length=2,
         )
@@ -54,7 +56,7 @@ class SetLimitModal(ui.Modal, title="Set Voice Channel Limit"):
     async def on_submit(self, interaction: Interaction):
         if interaction.user.id != self.owner.id:
             await interaction.response.send_message(
-                "Only the channel owner can change the limit!", ephemeral=True
+                get_message("modals.set_limit.msg_error_owner"), ephemeral=True
             )
             return
 
@@ -64,11 +66,11 @@ class SetLimitModal(ui.Modal, title="Set Voice Channel Limit"):
                 raise ValueError
         except ValueError:
             await interaction.response.send_message(
-                "Invalid number. Must be 0 or positive integer.", ephemeral=True
+                get_message("modals.set_limit.msg_error_invalid"), ephemeral=True
             )
             return
 
         await self.channel.edit(user_limit=new_limit)
         await interaction.response.send_message(
-            f"Channel limit set to {new_limit}.", ephemeral=True
+            get_message("modals.set_limit.msg_success", new_limit=new_limit), ephemeral=True
         )

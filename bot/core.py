@@ -6,15 +6,13 @@ import discord
 from discord.ext import commands
 from motor.motor_asyncio import AsyncIOMotorClient
 
+import settings
 from database import SessionManager
 from database.connection import db
 from database.models import Session
-from utils import get_settings
 
 from .books_dict import books_dict
 from .ui.views import ChannelControlView
-
-settings = get_settings()
 
 intents = discord.Intents.default()
 intents.guilds = True
@@ -30,6 +28,7 @@ temporary_channels = set()
 channel_owners = {}
 
 ALLOWED_GUILDS = settings.ALLOWED_GUILDS
+MESSAGES = settings.MESSAGES
 
 
 @bot.event
@@ -87,16 +86,22 @@ async def on_voice_state_update(member, before, after):
         await discord.utils.sleep_until(discord.utils.utcnow() + timedelta(seconds=1))
 
         try:
+            msg = MESSAGES["embeds"]["private_voice"]
+            color = getattr(discord.Color, msg["color"])()
+
             embed = discord.Embed(
-                title="Your Private Voice Channel",
-                description=f"Welcome {member.mention}!\n\nUse the buttons below to manage your channel.",
-                color=discord.Color.red()
+                title=msg["title"],
+                description=msg["description"].format(mention=member.mention),
+                color=color
             )
-            embed.add_field(name="📝", value="Change your channel name.", inline=True)
-            embed.add_field(name="👥 *", value="Set or adjust the member limit.", inline=True)
-            embed.add_field(name="👥 +", value="Increase member limit by 1.", inline=True)
-            embed.add_field(name="👥 -", value="Decrease member limit by 1.", inline=True)
-            embed.set_footer(text=f"Owner: {member.display_name}", icon_url=member.display_avatar.url)
+
+            for field in msg["fields"]:
+                embed.add_field(name=field["name"], value=field["value"], inline=True)
+
+            embed.set_footer(
+                text=msg["footer"].format(display_name=member.display_name), 
+                icon_url=member.display_avatar.url
+                )
             embed.timestamp = discord.utils.utcnow()
 
             await new_channel.send(embed=embed,view=ChannelControlView(new_channel, member, session_manager))

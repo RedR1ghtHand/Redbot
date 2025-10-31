@@ -68,7 +68,6 @@ class SessionManager:
         cursor = self.collection.find({"duration": {"$ne": None}}).sort("duration", DESCENDING).limit(limit)
         return [Session(**s) async for s in cursor]
 
-
     async def longest_sessions_this_week(self, limit: int = 10) -> list[Session]:
         week_ago = datetime.now(timezone.utc) - timedelta(days=7)
         cursor = self.collection.find({
@@ -81,4 +80,3 @@ class SessionManager:
         query_filter = {"duration": {"$lte": treshhold}}
         result = await self.collection.delete_many(query_filter, comment=f"Cleaning up all sessions shorter than {treshhold}seconds")
         return result.deleted_count
-        

@@ -1,5 +1,6 @@
 import os
 
+import yaml
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -14,3 +15,10 @@ ALLOWED_GUILDS = {int(x.strip()) for x in os.getenv("ALLOWED_GUILDS", "").split(
 
 MONGO_URI = os.getenv("MONGO_URI", "mongodb://localhost:27017")
 MONGO_DB = os.getenv("MONGO_DB", "redbot")
+
+
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+MESSAGES_FILE = os.path.join(BASE_DIR, "messages.yaml")
+
+with open(MESSAGES_FILE, "r", encoding="utf-8") as f:
+    MESSAGES = yaml.safe_load(f)
