@@ -16,6 +16,5 @@ RUN poetry install --no-root
 
 
 COPY . .
-RUN cp .env.example .env
 
 CMD ["python", "main.py"]

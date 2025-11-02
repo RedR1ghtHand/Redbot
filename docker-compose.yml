@@ -1,14 +1,33 @@
 version: '3.8'
 
 services:
-  # Discord Bot
-  redbot:
+  mongo:
+    image: mongo:6
+    container_name: redvoice-mongo
+    restart: always
+    ports:
+      - "27017:27017"
+    volumes:
+      - redvoice_data:/data/db
+    healthcheck:
+      test: [ "CMD", "mongosh", "--eval", "db.adminCommand('ping')" ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  bot:
     build:
       context: .
       dockerfile: Dockerfile
-    container_name: redbot-bot
+    container_name: redvoice-bot
     restart: unless-stopped
+    depends_on:
+      mongo:
+        condition: service_healthy
     env_file:
       - .env
-    volumes:
-      - ./logs:/app/logs
+
+volumes:
+  redvoice_data:
+
+
