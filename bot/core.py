@@ -138,17 +138,29 @@ async def top_sessions(ctx, limit: int = 10):
     limit = limit if limit <= 10 else 10
     sessions = await session_manager.longest_sessions_all_time(limit=limit)
 
+    top_config = MESSAGES.get("top", {})
+    if isinstance(top_config, dict) and "variants" in top_config:
+        variant_data = top_config.get("variants", {}).get(settings.TOP_VARIANT) or top_config.get("variants", {}).get("default", {})
+    else:
+        variant_data = top_config if isinstance(top_config, dict) else {}
+
+    title_template = variant_data.get("title", "Top {limit} Longest Voice Sessions")
+    color_name = variant_data.get("color", "red")
+    no_sessions_text = variant_data.get("no_sessions", "No sessions found yet.")
+    medals_override = variant_data.get("medals")
+
     if not sessions:
-        await ctx.send("No sessions found yet.")
+        await ctx.send(no_sessions_text)
         return
 
+    color = getattr(discord.Color, color_name, discord.Color.red)()
     embed = discord.Embed(
-        title=f"Top {limit} Longest Voice Sessions",
-        color=discord.Color.red()
+        title=title_template.format(limit=limit),
+        color=color
     )
 
     lines = []
-    medals = ["🥇", "🥈", "🥉"]
+    medals = medals_override or ["🥇", "🥈", "🥉"]
 
     for i, session in enumerate(sessions, start=1):
         duration = session.duration_pretty()
