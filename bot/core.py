@@ -3,6 +3,7 @@ import random
 from datetime import timedelta
 
 import discord
+from discord import app_commands
 from discord.ext import commands
 from motor.motor_asyncio import AsyncIOMotorClient
 
@@ -21,7 +22,8 @@ intents.voice_states = True
 intents.presences = True  
 intents.message_content = True
 
-bot = commands.Bot(command_prefix="/", intents=intents)
+bot = commands.Bot(command_prefix="!", intents=intents)
+tree = bot.tree
 session_manager = SessionManager(db)
 
 temporary_channels = set()
@@ -45,6 +47,12 @@ async def on_guild_join(guild):
 @bot.event
 async def on_ready():
     logging.info(f"Bot is ready! Logged in as {bot.user}")
+    logging.info(f"Currently registered commands: {len(tree.get_commands())}")
+    try:
+        synced = await tree.sync()
+        logging.info(f"Synced {len(synced)} slash command(s) with Discord globally. Command tree: {tree.get_commands()}")
+    except Exception as e:
+        logging.error(f"Failed to sync slash commands globally: {e}")
     
     for guild in bot.guilds:
         if guild.id not in ALLOWED_GUILDS:
@@ -133,24 +141,20 @@ async def show_books(ctx):
         await ctx.send(embed=embed)
 
 
-@bot.command(name="top")
-async def top_sessions(ctx, limit: int = 10):
+@tree.command(name="top", description="Show top sessions sorted by duration")
+async def top_sessions(interaction: discord.Interaction, limit: int = 10):
     limit = limit if limit <= 10 else 10
     sessions = await session_manager.longest_sessions_all_time(limit=limit)
 
     top_config = MESSAGES.get("top", {})
-    if isinstance(top_config, dict) and "variants" in top_config:
-        variant_data = top_config.get("variants", {}).get(settings.TOP_VARIANT) or top_config.get("variants", {}).get("default", {})
-    else:
-        variant_data = top_config if isinstance(top_config, dict) else {}
 
-    title_template = variant_data.get("title", "Top {limit} Longest Voice Sessions")
-    color_name = variant_data.get("color", "red")
-    no_sessions_text = variant_data.get("no_sessions", "No sessions found yet.")
-    medals_override = variant_data.get("medals")
+    title_template = top_config.get("title", "Top {limit} Longest Voice Sessions")
+    color_name = top_config.get("color", "red")
+    no_sessions_text = top_config.get("no_sessions", "No sessions found yet.")
+    medals_override = top_config.get("medals")
 
     if not sessions:
-        await ctx.send(no_sessions_text)
+        await interaction.response.send_message(no_sessions_text)
         return
 
     color = getattr(discord.Color, color_name, discord.Color.red)()
@@ -183,18 +187,18 @@ async def top_sessions(ctx, limit: int = 10):
 
     embed.description = description
 
-    await ctx.send(embed=embed)
+    await interaction.response.send_message(embed=embed)
 
 
-@bot.command()
-@commands.has_permissions(administrator=True)
-async def clean_up_short_sessions(ctx, treshhold: int):
+@tree.command(name="clean-up-short-sessions", description="Clean up short sessions")
+@app_commands.checks.has_permissions(administrator=True)
+async def clean_up_short_sessions(interaction: discord.Interaction, treshhold: int):
     deleted_count = await session_manager.clean_up_short_sessions(treshhold=treshhold)
 
     if not deleted_count:
-        await ctx.send(f"No sessions shorter than **{treshhold}**seconds found")
+        await interaction.response.send_message(f"No sessions shorter than **{treshhold}**seconds found")
     else:
-        await ctx.send(f"Cleaned up **{deleted_count}** sessions shorter than **{treshhold}**seconds")
+        await interaction.response.send_message(f"Cleaned up **{deleted_count}** sessions shorter than **{treshhold}**seconds")
 
 
 def run_bot():
