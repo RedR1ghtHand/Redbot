@@ -15,6 +15,12 @@ embeds:
         value: "Decrease member limit by 1."
     footer: "Owner: {display_name}"
 
+  top:
+    title: "Top {limit} Longest Voice Sessions"
+    no_sessions: "No sessions found yet."
+    color: red
+    medals: ["🥇", "🥈", "🥉"]
+
 modals:
   rename:
     title: "Rename Your Voice Channel"
@@ -44,19 +50,3 @@ buttons:
     msg_error: "Only the channel owner can change the limit!"
   set_limit:
     label: "👥*"
-
-top:
-  # You can define multiple variants (language or tone). Select with env TOP_VARIANT.
-  variants:
-    default:
-      title: "Top {limit} Longest Voice Sessions"
-      no_sessions: "No sessions found yet."
-      color: red
-      medals: ["🥇", "🥈", "🥉"]
-    playful:
-      title: "🔥 Top {limit} Voice Legends"
-      no_sessions: "No sessions yet — be the first!"
-      color: orange
-      medals: ["🏆", "🥈", "🥉"]
-
-

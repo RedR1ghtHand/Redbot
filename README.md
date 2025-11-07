@@ -49,6 +49,7 @@ RedVoice is a discord bot written with python which allows guild users to create
         - *View Channels*
         - *Connect / Speak*
         - *Manage Channels*
+        - *Move Members*
         - *Send Messages*
         - *Embed Links*
         - *Use Slash Commands*

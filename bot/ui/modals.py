@@ -13,7 +13,7 @@ class RenameModal(ui.Modal, title=get_message("modals.rename.title")):
         self.name_input = ui.TextInput(
             label=get_message("modals.rename.name_label"),
             placeholder=get_message("modals.rename.name_placeholder"),
-            max_length=100,
+            max_length=33,
             style=TextStyle.short
         )
         self.add_item(self.name_input)

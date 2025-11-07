@@ -11,8 +11,8 @@ import settings
 from database import SessionManager
 from database.connection import db
 from database.models import Session
+from utils import get_message
 
-from .books_dict import books_dict
 from .ui.views import ChannelControlView
 
 intents = discord.Intents.default()
@@ -30,7 +30,6 @@ temporary_channels = set()
 channel_owners = {}
 
 ALLOWED_GUILDS = settings.ALLOWED_GUILDS
-MESSAGES = settings.MESSAGES
 
 
 @bot.event
@@ -94,20 +93,19 @@ async def on_voice_state_update(member, before, after):
         await discord.utils.sleep_until(discord.utils.utcnow() + timedelta(seconds=1))
 
         try:
-            msg = MESSAGES["embeds"]["private_voice"]
-            color = getattr(discord.Color, msg["color"])()
-
+            color = getattr(discord.Color, get_message("embeds.private_voice.color"))()
+            
             embed = discord.Embed(
-                title=msg["title"],
-                description=msg["description"].format(mention=member.mention),
+                title=get_message("embeds.private_voice.title"),
+                description=get_message("embeds.private_voice.description", mention=member.mention),
                 color=color
             )
 
-            for field in msg["fields"]:
+            for field in get_message("embeds.private_voice.fields"):
                 embed.add_field(name=field["name"], value=field["value"], inline=True)
 
             embed.set_footer(
-                text=msg["footer"].format(display_name=member.display_name), 
+                text=get_message("embeds.private_voice.footer", display_name=member.display_name),
                 icon_url=member.display_avatar.url
                 )
             embed.timestamp = discord.utils.utcnow()
@@ -129,29 +127,15 @@ async def on_voice_state_update(member, before, after):
                 channel_owners.pop(before.channel.id, None)
 
 
-@bot.command()
-@commands.has_permissions(administrator=True)
-async def show_books(ctx):
-    for name, data in books_dict.items():
-        embed = discord.Embed(
-            title=f"📖  **{name}**",
-            color=discord.Color(int(data["color"].lstrip("#"), 16))
-        )
-        embed.set_thumbnail(url=data["icon"])
-        await ctx.send(embed=embed)
-
-
 @tree.command(name="top", description="Show top sessions sorted by duration")
 async def top_sessions(interaction: discord.Interaction, limit: int = 10):
     limit = limit if limit <= 10 else 10
     sessions = await session_manager.longest_sessions_all_time(limit=limit)
 
-    top_config = MESSAGES.get("top", {})
-
-    title_template = top_config.get("title", "Top {limit} Longest Voice Sessions")
-    color_name = top_config.get("color", "red")
-    no_sessions_text = top_config.get("no_sessions", "No sessions found yet.")
-    medals_override = top_config.get("medals")
+    title_template = get_message("embeds.top.title", limit=limit)
+    color_name = get_message("embeds.top.color")
+    no_sessions_text = get_message("embeds.top.no_sessions")
+    medals = get_message("embeds.top.medals")
 
     if not sessions:
         await interaction.response.send_message(no_sessions_text)
@@ -164,7 +148,6 @@ async def top_sessions(interaction: discord.Interaction, limit: int = 10):
     )
 
     lines = []
-    medals = medals_override or ["🥇", "🥈", "🥉"]
 
     for i, session in enumerate(sessions, start=1):
         duration = session.duration_pretty()
