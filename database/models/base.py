@@ -10,4 +10,3 @@ class Base(BaseModel, TimestampsMixin):
         json_encoders = {
             datetime: lambda dt: dt.isoformat(),
         }
-

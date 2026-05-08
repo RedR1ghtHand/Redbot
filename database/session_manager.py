@@ -1,7 +1,6 @@
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timezone
 
 from motor.motor_asyncio import AsyncIOMotorDatabase
-from pymongo import DESCENDING
 
 from database.models import Session
 
@@ -12,16 +11,14 @@ class SessionManager:
 
     async def start_session(
         self,
-        created_by: str,
+        creator_id: int,
         channel_name: str,
         channel_id: int,
-        creator_metadata: dict | None = None,
     ) -> Session:
         session = Session(
-            created_by=created_by,
+            creator_id=creator_id,
             channel_name=channel_name,
             channel_id=channel_id,
-            creator_metadata=creator_metadata or {},
         )
 
         await self.collection.insert_one(session.model_dump(by_alias=True))
@@ -55,9 +52,17 @@ class SessionManager:
     async def get_active_sessions(self) -> list[dict]:
         cursor = self.collection.find({"is_ended": False})
         return [
-            {"session": Session(**s), "created_by": s.get("created_by", "")}
+            {
+                "session": Session(**s),
+                "creator_id": s.get("creator_id"),
+                "created_by": s.get("created_by", ""),
+            }
             async for s in cursor
         ]
+
+    async def get_active_session_by_channel(self, channel_id: int) -> Session | None:
+        session_data = await self.collection.find_one({"channel_id": channel_id, "is_ended": False})
+        return Session(**session_data) if session_data else None
 
     async def delete_session(self, channel_id: int) -> bool:
         result = await self.collection.delete_one({"channel_id": channel_id, "is_ended": False})
@@ -74,18 +79,6 @@ class SessionManager:
             },
         )
         return result.modified_count > 0
-
-    async def longest_sessions_all_time(self, limit: int = 10) -> list[Session]:
-        cursor = self.collection.find({"duration": {"$ne": None}}).sort("duration", DESCENDING).limit(limit)
-        return [Session(**s) async for s in cursor]
-
-    async def longest_sessions_this_week(self, limit: int = 10) -> list[Session]:
-        week_ago = datetime.now(timezone.utc) - timedelta(days=7)
-        cursor = self.collection.find({
-            "duration": {"$exists": True},
-            "created_at": {"$gte": week_ago}
-        }).sort("duration", -1).limit(limit)
-        return [Session(**s) async for s in cursor]
 
     async def clean_up_short_sessions(self, treshhold: int = 600) -> int:
         query_filter = {"duration": {"$lte": treshhold}}

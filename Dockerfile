@@ -12,7 +12,7 @@ RUN pip install poetry
 COPY pyproject.toml poetry.lock ./
 
 RUN poetry config virtualenvs.create false
-RUN poetry install --no-root
+RUN poetry lock --no-cache --regenerate && poetry install --no-root
 
 
 COPY . .
