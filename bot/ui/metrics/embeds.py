@@ -8,8 +8,8 @@ import pandas as pd
 import plotly.express as px
 
 from bot.ui.shared import format_duration_hhmmss
-from database.analytics_manager import AnalyticsManager
-from database.member_manager import MemberManager
+from database.gateways.analytics import AnalyticsGateway
+from database.gateways.member import MemberGateway
 
 from .messages import stats_embed_scope_title, top_messages
 
@@ -376,14 +376,14 @@ async def build_weekday_trends_message(
 
 
 async def build_top_embed(
-    analytics_manager: AnalyticsManager,
-    member_manager: MemberManager,
+    analytics_gateway: AnalyticsGateway,
+    member_gateway: MemberGateway,
     limit: int = 10,
 ) -> tuple[discord.Embed | None, str | None]:
     limit = limit if limit <= 10 else 10
-    sessions = await analytics_manager.longest_sessions_all_time(limit=limit)
+    sessions = await analytics_gateway.longest_sessions_all_time(limit=limit)
     member_ids = [session.creator_id for session in sessions if session.creator_id is not None]
-    members_map = await member_manager.get_members_map(member_ids)
+    members_map = await member_gateway.get_members_map(member_ids)
 
     top_msg = top_messages(limit)
     title_template = top_msg["title_template"]

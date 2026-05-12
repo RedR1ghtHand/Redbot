@@ -5,7 +5,7 @@ from motor.motor_asyncio import AsyncIOMotorDatabase
 from database.models import Session
 
 
-class SessionManager:
+class SessionGateway:
     def __init__(self, db: AsyncIOMotorDatabase):
         self.collection = db["sessions"]
 
@@ -48,7 +48,7 @@ class SessionManager:
             {"$set": {"is_ended": True, "updated_at": now, "duration": duration}},
         )
         return result.modified_count > 0
-        
+
     async def get_active_sessions(self) -> list[dict]:
         cursor = self.collection.find({"is_ended": False})
         return [
@@ -74,7 +74,7 @@ class SessionManager:
             {
                 "$set": {
                     "channel_name": new_name,
-                    "updated_at": datetime.now(timezone.utc)
+                    "updated_at": datetime.now(timezone.utc),
                 }
             },
         )
@@ -82,5 +82,8 @@ class SessionManager:
 
     async def clean_up_short_sessions(self, treshhold: int = 600) -> int:
         query_filter = {"duration": {"$lte": treshhold}}
-        result = await self.collection.delete_many(query_filter, comment=f"Cleaning up all sessions shorter than {treshhold}seconds")
+        result = await self.collection.delete_many(
+            query_filter,
+            comment=f"Cleaning up all sessions shorter than {treshhold}seconds",
+        )
         return result.deleted_count

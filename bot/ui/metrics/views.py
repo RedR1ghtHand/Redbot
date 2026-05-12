@@ -1,8 +1,8 @@
 import disnake as discord
 
-from database.analytics_manager import AnalyticsManager
+from database.gateways.analytics import AnalyticsGateway
+from bot.services.metrics_cache import MetricsCacheManager
 
-from .cache import MetricsCacheManager
 from .embeds import (
     build_activity_message,
     build_leaderboard_message,
@@ -60,19 +60,19 @@ class RangeModal(discord.ui.Modal):
 class StatsMainView(discord.ui.View):
     def __init__(
         self,
-        analytics_manager: AnalyticsManager,
+        analytics_gateway: AnalyticsGateway,
         cache_manager: MetricsCacheManager,
         range_key: str = "week",
-        top_limit: int = 10,
+        top_limit: int = 5,
     ):
         super().__init__(timeout=300)
-        self.analytics_manager = analytics_manager
+        self.analytics_gateway = analytics_gateway
         self.cache_manager = cache_manager
         self.range_key = range_key
         self.top_limit = top_limit
 
     async def _date_range_text(self, lookback_days: int | None) -> str:
-        range_start, range_end = await self.analytics_manager.get_reporting_range(lookback_days=lookback_days)
+        range_start, range_end = await self.analytics_gateway.get_reporting_range(lookback_days=lookback_days)
         return f"{range_start:%d.%m.%Y} - {range_end:%d.%m.%Y}"
 
     def menu_embed(self) -> discord.Embed:
@@ -162,7 +162,7 @@ class StatsMainView(discord.ui.View):
     async def all_stats(self, button: discord.ui.Button, interaction: discord.Interaction) -> None:
         lookback_days = range_days(self.range_key)
         scope_label = range_label(self.range_key)
-        stats = await self.analytics_manager.get_stats_snapshot(
+        stats = await self.analytics_gateway.get_stats_snapshot(
             lookback_days=lookback_days,
             top_limit=self.top_limit,
         )

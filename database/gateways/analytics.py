@@ -3,14 +3,21 @@ from datetime import datetime, timedelta, timezone
 from motor.motor_asyncio import AsyncIOMotorDatabase
 from pymongo import DESCENDING
 
+import settings
 from database.models import Session
 
 
-class AnalyticsManager:
+class AnalyticsGateway:
     def __init__(self, db: AsyncIOMotorDatabase):
         self.sessions_collection = db["sessions"]
         self.journal_collection = db["session_journal"]
         self.members_collection = db["members"]
+
+    @staticmethod
+    def _ensure_utc(dt: datetime) -> datetime:
+        if dt.tzinfo is None:
+            return dt.replace(tzinfo=timezone.utc)
+        return dt
 
     async def longest_sessions_all_time(self, limit: int = 10) -> list[Session]:
         cursor = self.sessions_collection.find({"duration": {"$ne": None}}).sort("duration", DESCENDING).limit(limit)
@@ -26,10 +33,19 @@ class AnalyticsManager:
         ).sort("duration", DESCENDING).limit(limit)
         return [Session(**doc) async for doc in cursor]
 
-    async def get_stats_snapshot(self, lookback_days: int | None = None, top_limit: int = 10) -> dict:
-        query = {}
-        if lookback_days is not None:
-            query["created_at"] = {"$gte": datetime.now(timezone.utc) - timedelta(days=lookback_days)}
+    async def get_stats_snapshot(
+        self,
+        lookback_days: int | None = None,
+        top_limit: int = 10,
+        range_start: datetime | None = None,
+        range_end: datetime | None = None,
+    ) -> dict:
+        if range_start is None or range_end is None:
+            range_start, range_end = await self.get_reporting_range(lookback_days=lookback_days)
+
+        range_start = self._ensure_utc(range_start)
+        range_end = self._ensure_utc(range_end)
+        query = {"created_at": {"$gte": range_start, "$lte": range_end}}
 
         sessions = await self.sessions_collection.find(query).to_list(length=None)
         session_ids = [session.get("channel_id") for session in sessions if session.get("channel_id") is not None]
@@ -77,8 +93,11 @@ class AnalyticsManager:
             participant_time[participant_id] = participant_time.get(participant_id, 0) + duration
 
         unique_participants = len({member_id for ids in participants_by_session.values() for member_id in ids})
+        sessions_with_participants_count = len(participants_by_session)
         avg_participants_per_session = (
-            sum(len(ids) for ids in participants_by_session.values()) / sessions_count if sessions_count else 0.0
+            sum(len(ids) for ids in participants_by_session.values()) / sessions_with_participants_count
+            if sessions_with_participants_count
+            else 0.0
         )
 
         creator_time: dict[int, int] = {}
@@ -125,36 +144,52 @@ class AnalyticsManager:
             sort=[("created_at", 1)],
         )
         if oldest_session and oldest_session.get("created_at"):
-            started_at = oldest_session["created_at"]
-            if started_at.tzinfo is None:
-                started_at = started_at.replace(tzinfo=timezone.utc)
+            started_at = self._ensure_utc(oldest_session["created_at"])
             return started_at, now
         return now, now
 
-    async def get_activity_by_hour(self, lookback_days: int | None = None) -> list[dict]:
-        now = datetime.now(timezone.utc)
-        cutoff = (now - timedelta(days=lookback_days)) if lookback_days is not None else None
+    async def get_journal_start_date(self) -> datetime | None:
+        if settings.JOURNAL_METRICS_START_DATE is None:
+            return None
+        return self._ensure_utc(settings.JOURNAL_METRICS_START_DATE)
+
+    async def get_detailed_metrics_range(self, lookback_days: int | None = None) -> tuple[datetime, datetime]:
+        range_start, range_end = await self.get_reporting_range(lookback_days=lookback_days)
+        journal_start = await self.get_journal_start_date()
+        if journal_start is not None and journal_start > range_start:
+            range_start = journal_start
+        return range_start, range_end
+
+    async def get_activity_by_hour(
+        self,
+        lookback_days: int | None = None,
+        range_start: datetime | None = None,
+        range_end: datetime | None = None,
+    ) -> list[dict]:
+        if range_start is None or range_end is None:
+            range_start, range_end = await self.get_reporting_range(lookback_days=lookback_days)
+
+        range_start = self._ensure_utc(range_start)
+        range_end = self._ensure_utc(range_end)
 
         journals = await self.journal_collection.find({}).to_list(length=None)
         hourly_active: dict[datetime, set[int]] = {}
 
         for entry in journals:
             joined_at = entry.get("user_joined_at")
-            left_at = entry.get("user_left_at") or now
+            left_at = entry.get("user_left_at") or range_end
             user_data = entry.get("user_joined") or {}
             participant_id = user_data.get("member_id")
 
             if joined_at is None or participant_id is None:
                 continue
-            if joined_at.tzinfo is None:
-                joined_at = joined_at.replace(tzinfo=timezone.utc)
-            if left_at.tzinfo is None:
-                left_at = left_at.replace(tzinfo=timezone.utc)
-            if cutoff is not None and left_at < cutoff:
+            joined_at = self._ensure_utc(joined_at)
+            left_at = self._ensure_utc(left_at)
+            if joined_at > range_end or left_at < range_start:
                 continue
 
-            start = max(joined_at, cutoff) if cutoff is not None else joined_at
-            end = max(start, left_at)
+            start = max(joined_at, range_start)
+            end = min(range_end, max(start, left_at))
             cursor = start.replace(minute=0, second=0, microsecond=0)
             end_hour = end.replace(minute=0, second=0, microsecond=0)
 
@@ -162,15 +197,8 @@ class AnalyticsManager:
                 hourly_active.setdefault(cursor, set()).add(participant_id)
                 cursor += timedelta(hours=1)
 
-        if cutoff is None:
-            if hourly_active:
-                first_hour = min(hourly_active.keys())
-            else:
-                first_hour = now - timedelta(days=7)
-            window_start = first_hour.replace(minute=0, second=0, microsecond=0)
-        else:
-            window_start = cutoff.replace(minute=0, second=0, microsecond=0)
-        window_end = now.replace(minute=0, second=0, microsecond=0)
+        window_start = range_start.replace(minute=0, second=0, microsecond=0)
+        window_end = range_end.replace(minute=0, second=0, microsecond=0)
 
         samples_count = {hour: 0 for hour in range(24)}
         active_sum = {hour: 0 for hour in range(24)}
@@ -192,9 +220,18 @@ class AnalyticsManager:
             for hour in range(24)
         ]
 
-    async def get_weekday_voice_trends(self, lookback_days: int | None = None) -> dict:
+    async def get_weekday_voice_trends(
+        self,
+        lookback_days: int | None = None,
+        range_start: datetime | None = None,
+        range_end: datetime | None = None,
+    ) -> dict:
         now = datetime.now(timezone.utc)
-        range_start, range_end = await self.get_reporting_range(lookback_days=lookback_days)
+        if range_start is None or range_end is None:
+            range_start, range_end = await self.get_reporting_range(lookback_days=lookback_days)
+
+        range_start = self._ensure_utc(range_start)
+        range_end = self._ensure_utc(range_end)
         range_query = {"created_at": {"$gte": range_start, "$lte": range_end}}
 
         sessions = await self.sessions_collection.find(range_query).to_list(length=None)
@@ -227,8 +264,7 @@ class AnalyticsManager:
             created_at = session.get("created_at")
             if created_at is None:
                 continue
-            if created_at.tzinfo is None:
-                created_at = created_at.replace(tzinfo=timezone.utc)
+            created_at = self._ensure_utc(created_at)
             if created_at < range_start or created_at > range_end:
                 continue
             day_key = created_at.date()

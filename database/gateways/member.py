@@ -3,7 +3,7 @@ from motor.motor_asyncio import AsyncIOMotorDatabase
 from database.models import Member
 
 
-class MemberManager:
+class MemberGateway:
     def __init__(self, db: AsyncIOMotorDatabase):
         self.collection = db["members"]
 

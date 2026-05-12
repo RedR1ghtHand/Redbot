@@ -2,9 +2,9 @@ import json
 from datetime import datetime, timezone
 from pathlib import Path
 
-from database.analytics_manager import AnalyticsManager
+from database.gateways.analytics import AnalyticsGateway
 
-from .embeds import (
+from bot.ui.metrics.embeds import (
     ACTIVITY_FILENAME,
     LEADERBOARD_FILENAME,
     OVERVIEW_FILENAME,
@@ -17,13 +17,14 @@ from .embeds import (
 
 
 class MetricsCacheManager:
-    def __init__(self, analytics_manager: AnalyticsManager, cache_root: str = "analysis_output/cache/metrics"):
-        self.analytics_manager = analytics_manager
+    def __init__(self, analytics_gateway: AnalyticsGateway, cache_root: str = "analysis_output/cache/metrics"):
+        self.analytics_gateway = analytics_gateway
         self.cache_root = Path(cache_root)
+        self.cache_version = "v3"
 
     def _range_dir(self, range_key: str) -> Path:
         day_key = datetime.now(timezone.utc).strftime("%Y-%m-%d")
-        return self.cache_root / day_key / range_key
+        return self.cache_root / self.cache_version / day_key / range_key
 
     async def get_or_build_detailed_metrics(
         self,
@@ -53,13 +54,23 @@ class MetricsCacheManager:
             payload["images"] = images
             return payload
 
-        stats = await self.analytics_manager.get_stats_snapshot(
-            lookback_days=lookback_days,
+        range_start, range_end = await self.analytics_gateway.get_detailed_metrics_range(lookback_days=lookback_days)
+
+        stats = await self.analytics_gateway.get_stats_snapshot(
             top_limit=top_limit,
+            range_start=range_start,
+            range_end=range_end,
         )
-        activity_points = await self.analytics_manager.get_activity_by_hour(lookback_days=lookback_days)
-        weekday_trends = await self.analytics_manager.get_weekday_voice_trends(lookback_days=lookback_days)
-        range_start, range_end = await self.analytics_manager.get_reporting_range(lookback_days=lookback_days)
+        activity_points = await self.analytics_gateway.get_activity_by_hour(
+            lookback_days=lookback_days,
+            range_start=range_start,
+            range_end=range_end,
+        )
+        weekday_trends = await self.analytics_gateway.get_weekday_voice_trends(
+            lookback_days=lookback_days,
+            range_start=range_start,
+            range_end=range_end,
+        )
         date_range_text = f"{range_start:%d.%m.%Y} - {range_end:%d.%m.%Y}"
 
         range_dir.mkdir(parents=True, exist_ok=True)

@@ -1,8 +1,8 @@
 #
 embeds:
   private_voice:
-    title: "Your Private Voice Channel"
-    description: "Welcome {mention}!\n\nUse the buttons below to manage your channel."
+    title: "Ваш приватний голосовий канал"
+    description: "Вітання {mention}!\n\nВикористовуйте кнопки нижче для керування каналом."
     color: orange
     fields:
       - name: "📝"
@@ -26,14 +26,14 @@ modals:
     title: "Rename Your Voice Channel"
     name_label: "New channel name"
     name_placeholder: "Enter a name (1–100 chars)"
-    msg_error_owner: "Only the channel owner can rename this VC!"
+    msg_error_owner: "Only **{creator_label}** can rename this VC!"
     msg_error_empty: "Channel name cannot be empty."
     msg_success: "Channel renamed to **{new_name}**!"
   set_limit:
     title: "Set Voice Channel Limit"
     limit_label: "Enter limit"
     limit_placeholder: "Must be a number 1–99 (0 for unlimited)"
-    msg_error_owner: "Only the channel owner can change the limit!"
+    msg_error_owner: "Only **{creator_label}** can change the limit!"
     msg_error_invalid: "Invalid number. Must be 0 or a positive integer."
     msg_success: "Channel limit set to {new_limit}."
 
@@ -43,10 +43,10 @@ buttons:
   increase_limit:
     label: "👥+"
     msg_success: "Channel limit increased to {new_limit}."
-    msg_error: "Only the channel owner can change the limit!"
+    msg_error: "Only **{creator_label}** can change the limit!"
   decrease_limit:
     label: "👥-"
     msg_success: "Channel limit decreased to {new_limit}."
-    msg_error: "Only the channel owner can change the limit!"
+    msg_error: "Only **{creator_label}** can change the limit!"
   set_limit:
     label: "👥*"

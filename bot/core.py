@@ -7,18 +7,18 @@ from disnake.ext import commands
 
 import settings
 from database import (
-    AnalyticsManager,
-    MemberManager,
-    SessionJournalManager,
-    SessionManager,
+    AnalyticsGateway,
+    MemberGateway,
+    SessionGateway,
+    SessionJournalGateway,
 )
 from database.connection import db
 
 from .commands.fixes import register_fix_commands
 from .commands.metrics import register_metrics_commands
+from .services.metrics_cache import MetricsCacheManager
 from .ui.channels.messages import build_private_voice_embed
 from .ui.channels.views import ChannelControlView
-from .ui.metrics.cache import MetricsCacheManager
 
 intents = discord.Intents.default()
 intents.guilds = True
@@ -30,15 +30,15 @@ intents.message_content = True
 ALLOWED_GUILDS = settings.ALLOWED_GUILDS
 
 bot = commands.InteractionBot(intents=intents, test_guilds=list(ALLOWED_GUILDS))
-session_manager = SessionManager(db)
-member_manager = MemberManager(db)
-session_journal_manager = SessionJournalManager(db)
-analytics_manager = AnalyticsManager(db)
-metrics_cache_manager = MetricsCacheManager(analytics_manager)
+session_gateway = SessionGateway(db)
+member_gateway = MemberGateway(db)
+session_journal_gateway = SessionJournalGateway(db)
+analytics_gateway = AnalyticsGateway(db)
+metrics_cache_manager = MetricsCacheManager(analytics_gateway)
 
 temporary_channels: set[int] = set()
-register_metrics_commands(bot, analytics_manager, member_manager, metrics_cache_manager)
-register_fix_commands(bot, session_manager, bot, temporary_channels)
+register_metrics_commands(bot, analytics_gateway, member_gateway, metrics_cache_manager)
+register_fix_commands(bot, session_gateway, bot, temporary_channels)
 
 
 @bot.event
@@ -58,7 +58,7 @@ async def on_ready():
     logging.info(f"Bot is ready! Logged in as {bot.user}")
     logging.info(f"Registered slash commands: {len(bot.slash_commands)}")
 
-    active_sessions = await session_manager.get_active_sessions()
+    active_sessions = await session_gateway.get_active_sessions()
     temporary_channels.clear()
     temporary_channels.update(item["session"].channel_id for item in active_sessions)
     for item in active_sessions:
@@ -75,12 +75,12 @@ async def on_ready():
                     owner = channel.guild.get_member_named(created_by)
             creator_record = None
             if creator_id is not None:
-                creator_record = await member_manager.get_member(creator_id)
+                creator_record = await member_gateway.get_member(creator_id)
             bot.add_view(
                 ChannelControlView(
                     channel,
                     owner=owner,
-                    session_manager=session_manager,
+                    session_gateway=session_gateway,
                     creator_record=creator_record,
                 )
             )
@@ -98,7 +98,7 @@ async def on_ready():
 
 @bot.event
 async def on_voice_state_update(member, before, after):
-    member_record = await member_manager.upsert_member(
+    member_record = await member_gateway.upsert_member(
         member_id=member.id,
         username=member.name,
         public_name=member.display_name,
@@ -117,7 +117,7 @@ async def on_voice_state_update(member, before, after):
         )
         temporary_channels.add(new_channel.id)
 
-        await session_manager.start_session(
+        await session_gateway.start_session(
             creator_id=member.id,
             channel_name=new_channel.name,
             channel_id=new_channel.id,
@@ -135,7 +135,7 @@ async def on_voice_state_update(member, before, after):
                 view=ChannelControlView(
                     new_channel,
                     member,
-                    session_manager,
+                    session_gateway,
                     creator_record=member_record,
                 ),
             )
@@ -144,25 +144,25 @@ async def on_voice_state_update(member, before, after):
             logging.error(f"Failed to send control panel message to {new_channel.id}: {e}")
 
     if after.channel and before.channel != after.channel and after.channel.id in temporary_channels:
-        active_session = await session_manager.get_active_session_by_channel(after.channel.id)
+        active_session = await session_gateway.get_active_session_by_channel(after.channel.id)
         if active_session:
-            await session_journal_manager.open_entry(
+            await session_journal_gateway.open_entry(
                 session_id=after.channel.id,
                 member=member_record,
             )
 
     if before.channel and before.channel != after.channel:
         if before.channel.id not in settings.CREATE_CHANNEL_IDS:
-            await session_manager.update_session(before.channel.id)
+            await session_gateway.update_session(before.channel.id)
 
             if before.channel.id in temporary_channels:
-                await session_journal_manager.close_entry(
+                await session_journal_gateway.close_entry(
                     session_id=before.channel.id,
                     member_id=member.id,
                 )
 
             if before.channel.id in temporary_channels and len(before.channel.members) == 0:
-                await session_manager.update_and_end_session(before.channel.id)
+                await session_gateway.update_and_end_session(before.channel.id)
                 logging.info(F"Session '{before.channel.name}' ended. Entry saved to the database")
                 await before.channel.delete(reason="Temporary VC empty")
                 temporary_channels.remove(before.channel.id)

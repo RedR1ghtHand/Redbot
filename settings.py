@@ -1,10 +1,18 @@
-import logging
 import os
+from datetime import datetime, timezone
 
 import yaml
 from dotenv import load_dotenv
 
 load_dotenv()
+
+
+def _parse_env_utc_date(name: str, default: str | None = None) -> datetime | None:
+    raw_value = os.getenv(name, default)
+    if not raw_value:
+        return None
+    parsed = datetime.strptime(raw_value, "%Y-%m-%d")
+    return parsed.replace(tzinfo=timezone.utc)
 
 LOG_LEVEL = os.getenv("LOG_LEVEL", "WARNING").upper()
 
@@ -16,6 +24,8 @@ ALLOWED_GUILDS = {int(x.strip()) for x in os.getenv("ALLOWED_GUILDS", "").split(
 
 MONGO_URI = os.getenv("MONGO_URI", "mongodb://localhost:27017")
 MONGO_DB = os.getenv("MONGO_DB", "redbot")
+
+JOURNAL_METRICS_START_DATE = _parse_env_utc_date("JOURNAL_METRICS_START_DATE", "2026-05-01")
 
 if os.path.exists("messages.yaml"):
     with open("messages.yaml", "r", encoding="utf-8") as f:

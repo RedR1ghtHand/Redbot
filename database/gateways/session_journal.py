@@ -5,7 +5,7 @@ from motor.motor_asyncio import AsyncIOMotorDatabase
 from database.models import Member, SessionJournal
 
 
-class SessionJournalManager:
+class SessionJournalGateway:
     def __init__(self, db: AsyncIOMotorDatabase):
         self.collection = db["session_journal"]
 

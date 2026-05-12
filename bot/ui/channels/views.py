@@ -17,13 +17,13 @@ class ChannelControlView(ui.View):
         self,
         channel,
         owner,
-        session_manager,
+        session_gateway,
         creator_record: Member | None = None,
     ):
         super().__init__(timeout=None)
         self.channel = channel
         self.owner = owner
-        self.session_manager = session_manager
+        self.session_gateway = session_gateway
         self.creator_record = creator_record
 
     def _creator_uid(self) -> int | None:
@@ -35,7 +35,7 @@ class ChannelControlView(ui.View):
             RenameModal(
                 self.channel,
                 self.owner,
-                self.session_manager,
+                self.session_gateway,
                 self.creator_record,
             )
         )
