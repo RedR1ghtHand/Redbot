@@ -7,6 +7,7 @@ import disnake as discord
 import pandas as pd
 import plotly.express as px
 
+import settings
 from bot.ui.shared import format_duration_hhmmss
 from database.gateways.analytics import AnalyticsGateway
 from database.gateways.member import MemberGateway
@@ -160,9 +161,14 @@ def _build_leaderboard_figure(stats: dict):
     return fig
 
 
-def _build_activity_figure(activity_points: list[dict]):
+def _activity_chart_timezone_label() -> str:
+    return settings.REPORTING_TIMEZONE_NAME or "UTC"
+
+
+def _build_activity_figure(activity_points: list[dict], timezone_label: str | None = None):
     if not activity_points:
         return None
+    tz = timezone_label or _activity_chart_timezone_label()
     df = pd.DataFrame(activity_points)
     df = df.sort_values("hour")
     fig = px.line(
@@ -170,11 +176,11 @@ def _build_activity_figure(activity_points: list[dict]):
         x="hour",
         y="avg_active_participants",
         markers=True,
-        title="Average Activity by Hour (0-23 UTC)",
+        title=f"Average Activity by Hour (0–23, {tz})",
         labels={"hour": "Hour of day", "avg_active_participants": "Avg active participants"},
     )
     fig.update_layout(
-        xaxis_title="Hour of day (0-23)",
+        xaxis_title=f"Hour of day (local {tz})",
         yaxis_title="Avg active participants",
     )
     fig.update_xaxes(tickmode="linear", dtick=1, range=[0, 23])
@@ -243,8 +249,11 @@ async def render_leaderboard_chart_png(stats: dict) -> bytes | None:
     return await asyncio.to_thread(_fig_to_png_bytes, fig, True)
 
 
-async def render_activity_chart_png(activity_points: list[dict]) -> bytes | None:
-    fig = _build_activity_figure(activity_points)
+async def render_activity_chart_png(
+    activity_points: list[dict],
+    timezone_label: str | None = None,
+) -> bytes | None:
+    fig = _build_activity_figure(activity_points, timezone_label=timezone_label)
     if fig is None:
         return None
     return await asyncio.to_thread(_fig_to_png_bytes, fig, False)
@@ -316,12 +325,14 @@ async def build_activity_message(
     scope_label: str,
     date_range_text: str,
     cached_image_path: str | None = None,
+    timezone_label: str | None = None,
 ) -> tuple[discord.Embed, discord.File | None]:
+    tz = timezone_label or _activity_chart_timezone_label()
     embed = discord.Embed(
         title=_metrics_title(scope_label, "Activity"),
         description=_metrics_description(
             date_range_text,
-            details="Average active participants by hour of day (UTC).",
+            details=f"Average active participants by hour of day (local clock in {tz}).",
         ),
         color=discord.Color.blurple(),
     )
@@ -332,7 +343,7 @@ async def build_activity_message(
     if cached_image_path and Path(cached_image_path).exists():
         file = discord.File(cached_image_path, filename=ACTIVITY_FILENAME)
     else:
-        fig = _build_activity_figure(activity_points)
+        fig = _build_activity_figure(activity_points, timezone_label=tz)
         if fig is None:
             return embed, None
         file = await asyncio.to_thread(_fig_to_file, fig, ACTIVITY_FILENAME, False)

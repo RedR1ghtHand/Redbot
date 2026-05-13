@@ -172,8 +172,10 @@ class AnalyticsGateway:
         range_start = self._ensure_utc(range_start)
         range_end = self._ensure_utc(range_end)
 
+        tz = settings.get_reporting_timezone()
+
         journals = await self.journal_collection.find({}).to_list(length=None)
-        hourly_active: dict[datetime, set[int]] = {}
+        entries: list[tuple[int, datetime, datetime]] = []
 
         for entry in journals:
             joined_at = entry.get("user_joined_at")
@@ -190,25 +192,38 @@ class AnalyticsGateway:
 
             start = max(joined_at, range_start)
             end = min(range_end, max(start, left_at))
-            cursor = start.replace(minute=0, second=0, microsecond=0)
-            end_hour = end.replace(minute=0, second=0, microsecond=0)
-
-            while cursor <= end_hour:
-                hourly_active.setdefault(cursor, set()).add(participant_id)
-                cursor += timedelta(hours=1)
-
-        window_start = range_start.replace(minute=0, second=0, microsecond=0)
-        window_end = range_end.replace(minute=0, second=0, microsecond=0)
+            entries.append((participant_id, start, end))
 
         samples_count = {hour: 0 for hour in range(24)}
         active_sum = {hour: 0 for hour in range(24)}
 
-        cursor = window_start
-        while cursor <= window_end:
-            hour_of_day = cursor.hour
-            samples_count[hour_of_day] += 1
-            active_sum[hour_of_day] += len(hourly_active.get(cursor, set()))
-            cursor += timedelta(hours=1)
+        range_start_local = range_start.astimezone(tz)
+        cursor_local = range_start_local.replace(minute=0, second=0, microsecond=0)
+
+        while True:
+            slot_start_local = cursor_local
+            slot_end_local = cursor_local + timedelta(hours=1)
+            slot_start_utc = slot_start_local.astimezone(timezone.utc)
+            if slot_start_utc >= range_end:
+                break
+
+            slot_end_utc = slot_end_local.astimezone(timezone.utc)
+            seg_start = max(slot_start_utc, range_start)
+            seg_end = min(slot_end_utc, range_end)
+
+            if seg_start < seg_end:
+                active: set[int] = set()
+                for participant_id, ja, la in entries:
+                    overlap_start = max(ja, seg_start)
+                    overlap_end = min(la, seg_end)
+                    if overlap_start < overlap_end:
+                        active.add(participant_id)
+
+                hour_of_day = slot_start_local.hour
+                active_sum[hour_of_day] += len(active)
+                samples_count[hour_of_day] += 1
+
+            cursor_local += timedelta(hours=1)
 
         return [
             {

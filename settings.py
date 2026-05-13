@@ -1,10 +1,24 @@
 import os
 from datetime import datetime, timezone
+from zoneinfo import ZoneInfo
 
 import yaml
 from dotenv import load_dotenv
 
 load_dotenv()
+
+_REPORTING_TZ_ENV = os.getenv("REPORTING_TIMEZONE", "UTC")
+
+
+def get_reporting_timezone() -> ZoneInfo:
+    """IANA zone used for activity-by-hour charts and labels (e.g. Europe/Kyiv). Invalid names fall back to UTC."""
+    try:
+        return ZoneInfo(_REPORTING_TZ_ENV)
+    except Exception:
+        return ZoneInfo("UTC")
+
+
+REPORTING_TIMEZONE_NAME = _REPORTING_TZ_ENV
 
 
 def _parse_env_utc_date(name: str, default: str | None = None) -> datetime | None:
@@ -13,6 +27,7 @@ def _parse_env_utc_date(name: str, default: str | None = None) -> datetime | Non
         return None
     parsed = datetime.strptime(raw_value, "%Y-%m-%d")
     return parsed.replace(tzinfo=timezone.utc)
+
 
 LOG_LEVEL = os.getenv("LOG_LEVEL", "WARNING").upper()
 

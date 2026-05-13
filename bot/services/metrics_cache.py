@@ -2,8 +2,7 @@ import json
 from datetime import datetime, timezone
 from pathlib import Path
 
-from database.gateways.analytics import AnalyticsGateway
-
+import settings
 from bot.ui.metrics.embeds import (
     ACTIVITY_FILENAME,
     LEADERBOARD_FILENAME,
@@ -14,13 +13,14 @@ from bot.ui.metrics.embeds import (
     render_overview_chart_png,
     render_weekday_trends_chart_png,
 )
+from database.gateways.analytics import AnalyticsGateway
 
 
 class MetricsCacheManager:
     def __init__(self, analytics_gateway: AnalyticsGateway, cache_root: str = "analysis_output/cache/metrics"):
         self.analytics_gateway = analytics_gateway
         self.cache_root = Path(cache_root)
-        self.cache_version = "v3"
+        self.cache_version = "v4"
 
     def _range_dir(self, range_key: str) -> Path:
         day_key = datetime.now(timezone.utc).strftime("%Y-%m-%d")
@@ -83,7 +83,10 @@ class MetricsCacheManager:
         if leaderboard_bytes is not None:
             leaderboard_path.write_bytes(leaderboard_bytes)
 
-        activity_bytes = await render_activity_chart_png(activity_points)
+        activity_bytes = await render_activity_chart_png(
+            activity_points,
+            timezone_label=settings.REPORTING_TIMEZONE_NAME,
+        )
         if activity_bytes is not None:
             activity_path.write_bytes(activity_bytes)
         weekday_trends_bytes = await render_weekday_trends_chart_png(
