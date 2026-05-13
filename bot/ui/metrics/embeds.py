@@ -1,6 +1,7 @@
 import asyncio
 import io
 import logging
+from collections import Counter
 from pathlib import Path
 
 import disnake as discord
@@ -137,15 +138,25 @@ def _build_overview_figure(stats: dict):
 
 
 def _build_leaderboard_figure(stats: dict):
-    creators = stats["top_creators"][:5]
-    participants = stats["top_participants"][:5]
-    chart_rows = []
-    for row in creators:
-        chart_rows.append({"name": row["name"], "hours": row["seconds"] / 3600, "group": "Creators"})
-    for row in participants:
-        chart_rows.append({"name": row["name"], "hours": row["seconds"] / 3600, "group": "Participants"})
-    if not chart_rows:
+    combined = stats.get("leaderboard_top_combined") or []
+    chart_slice = combined[:5]
+    if not chart_slice:
         return None
+
+    name_counts = Counter(row["name"] for row in chart_slice)
+    chart_rows: list[dict] = []
+    ordered_labels: list[str] = []
+    for row in chart_slice:
+        label = row["name"]
+        if name_counts[label] > 1:
+            label = f"{row['name']} ({row['member_id']})"
+        ordered_labels.append(label)
+        chart_rows.append(
+            {"name": label, "hours": row["participant_seconds"] / 3600.0, "group": "Participants"},
+        )
+        chart_rows.append(
+            {"name": label, "hours": row["creator_seconds"] / 3600.0, "group": "Creators"},
+        )
 
     df = pd.DataFrame(chart_rows)
     color_map = {
@@ -159,13 +170,17 @@ def _build_leaderboard_figure(stats: dict):
         color="group",
         barmode="group",
         orientation="h",
-        title="Top creators vs top participants (up to 5 each; one row per display name)",
+        title="Top 5 by combined voice time (participant + created channels)",
         color_discrete_map=color_map,
-        labels={"hours": "Hours", "name": "User", "group": "Leaderboard"},
+        labels={"hours": "Hours", "name": "User", "group": "Metric"},
     )
     fig.update_layout(
         legend_title_text="Color key",
         margin=dict(t=80),
+        yaxis=dict(
+            categoryorder="array",
+            categoryarray=list(reversed(ordered_labels)),
+        ),
     )
     return fig
 
@@ -310,7 +325,7 @@ async def build_leaderboard_message(
         title=_metrics_title(scope_label, "Leaderboards"),
         description=_metrics_description(
             date_range_text,
-            details="Up to top 5 creators and top 5 participants by hours (participant time from join/leave journal; creator time from session duration).",
+            details="Top 5 users by participant + creator hours (ranked on the sum). Orange = time in others’ channels (journal); blue = time in channels you created (session duration).",
         ),
         color=discord.Color.blurple(),
     )
@@ -325,7 +340,7 @@ async def build_leaderboard_message(
         if file:
             embed.set_image(url=f"attachment://{LEADERBOARD_FILENAME}")
             return embed, file
-    embed.add_field(name="No leaderboard data", value="No creator or participant activity in this range.", inline=False)
+    embed.add_field(name="No leaderboard data", value="No voice activity in this range.", inline=False)
     return embed, None
 
 
