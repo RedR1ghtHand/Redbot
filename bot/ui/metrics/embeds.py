@@ -79,7 +79,12 @@ def _metrics_description(date_range_text: str, details: str | None = None) -> st
 
 
 def _fig_to_file(fig, filename: str, showlegend: bool = False) -> discord.File | None:
-    fig.update_layout(template="plotly_dark", showlegend=showlegend)
+    fig.update_layout(
+        template="plotly_dark",
+        showlegend=showlegend,
+        # Kaleido default fonts often miss Cyrillic/emoji; DejaVu Sans covers most non-Latin labels.
+        font=dict(family="DejaVu Sans, Arial, sans-serif"),
+    )
     try:
         image_bytes = fig.to_image(format="png", width=1200, height=650, scale=2)
     except Exception:
@@ -89,7 +94,11 @@ def _fig_to_file(fig, filename: str, showlegend: bool = False) -> discord.File |
 
 
 def _fig_to_png_bytes(fig, showlegend: bool = False) -> bytes | None:
-    fig.update_layout(template="plotly_dark", showlegend=showlegend)
+    fig.update_layout(
+        template="plotly_dark",
+        showlegend=showlegend,
+        font=dict(family="DejaVu Sans, Arial, sans-serif"),
+    )
     try:
         return fig.to_image(format="png", width=1200, height=650, scale=2)
     except Exception:
@@ -150,7 +159,7 @@ def _build_leaderboard_figure(stats: dict):
         color="group",
         barmode="group",
         orientation="h",
-        title="Top 5 Creators vs Top 5 Participants",
+        title="Top creators vs top participants (up to 5 each; one row per display name)",
         color_discrete_map=color_map,
         labels={"hours": "Hours", "name": "User", "group": "Leaderboard"},
     )
@@ -301,7 +310,7 @@ async def build_leaderboard_message(
         title=_metrics_title(scope_label, "Leaderboards"),
         description=_metrics_description(
             date_range_text,
-            details="Top creators and participants comparison (hours).",
+            details="Up to top 5 creators and top 5 participants by hours (participant time from join/leave journal; creator time from session duration).",
         ),
         color=discord.Color.blurple(),
     )

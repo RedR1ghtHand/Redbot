@@ -20,7 +20,7 @@ class MetricsCacheManager:
     def __init__(self, analytics_gateway: AnalyticsGateway, cache_root: str = "analysis_output/cache/metrics"):
         self.analytics_gateway = analytics_gateway
         self.cache_root = Path(cache_root)
-        self.cache_version = "v4"
+        self.cache_version = "v5"
 
     def _range_dir(self, range_key: str) -> Path:
         day_key = datetime.now(timezone.utc).strftime("%Y-%m-%d")
