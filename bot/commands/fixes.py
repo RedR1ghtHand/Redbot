@@ -3,7 +3,7 @@ import logging
 import disnake as discord
 from disnake.ext import commands
 
-from database.gateways.session import SessionGateway
+from database.gateways import SessionGateway, SessionJournalGateway
 
 
 def register_fix_commands(
@@ -11,6 +11,7 @@ def register_fix_commands(
     session_gateway: SessionGateway,
     client: commands.InteractionBot,
     temporary_channels: set[int],
+    session_journal_gateway: SessionJournalGateway,
 ) -> None:
     @bot.slash_command(name="clean-up-short-sessions", description="Clean up short sessions")
     @commands.has_permissions(administrator=True)
@@ -82,4 +83,20 @@ def register_fix_commands(
         else:
             await interaction.response.send_message(
                 f"Removed **{cleaned}** broken session(s) from the database (channel no longer exists)."
+            )
+
+    @bot.slash_command(
+        name="clean-up-db-journals",
+        description=(
+            "Delete open journal rows (user_left_at unset) whose voice session is already ended in the DB"
+        ),
+    )
+    @commands.has_permissions(administrator=True)
+    async def clean_up_db_journals(interaction: discord.ApplicationCommandInteraction) -> None:
+        removed = await session_journal_gateway.delete_open_journals_for_ended_sessions()
+        if removed == 0:
+            await interaction.response.send_message("No stale open journal rows found.")
+        else:
+            await interaction.response.send_message(
+                f"Removed **{removed}** open journal row(s) tied to already-ended sessions."
             )

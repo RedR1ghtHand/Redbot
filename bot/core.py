@@ -14,11 +14,11 @@ from database import (
 )
 from database.connection import db
 
+from bot.services import MetricsCacheManager
+from bot.ui.channels import ChannelControlView, build_private_voice_embed
+
 from .commands.fixes import register_fix_commands
 from .commands.metrics import register_metrics_commands
-from .services.metrics_cache import MetricsCacheManager
-from .ui.channels.messages import build_private_voice_embed
-from .ui.channels.views import ChannelControlView
 
 intents = discord.Intents.default()
 intents.guilds = True
@@ -38,7 +38,7 @@ metrics_cache_manager = MetricsCacheManager(analytics_gateway)
 
 temporary_channels: set[int] = set()
 register_metrics_commands(bot, analytics_gateway, member_gateway, metrics_cache_manager)
-register_fix_commands(bot, session_gateway, bot, temporary_channels)
+register_fix_commands(bot, session_gateway, bot, temporary_channels, session_journal_gateway)
 
 
 @bot.event
@@ -57,6 +57,13 @@ async def on_ready():
     global temporary_channels
     logging.info(f"Bot is ready! Logged in as {bot.user}")
     logging.info(f"Registered slash commands: {len(bot.slash_commands)}")
+
+    removed_journals = await session_journal_gateway.delete_open_journals_for_ended_sessions()
+    if removed_journals:
+        logging.info(
+            "Removed %s open journal row(s) whose session was already ended (stale after missed leave events).",
+            removed_journals,
+        )
 
     active_sessions = await session_gateway.get_active_sessions()
     temporary_channels.clear()

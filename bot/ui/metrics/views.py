@@ -1,7 +1,7 @@
 import disnake as discord
 
-from database.gateways.analytics import AnalyticsGateway
-from bot.services.metrics_cache import MetricsCacheManager
+from bot.services import MetricsCacheManager
+from database.gateways import AnalyticsGateway
 
 from .embeds import (
     build_activity_message,
@@ -48,10 +48,8 @@ class RangeModal(discord.ui.Modal):
             timeout=300,
         )
 
-    async def callback(self, interaction: discord.ModalInteraction) -> None:
-        selected_values = interaction.values.get("stats_range_select_value", [])
-        selected = selected_values[0] if selected_values else self.parent_view.range_key
-        self.parent_view.range_key = selected
+    async def callback(self, interaction: discord.Interaction) -> None:
+        self.parent_view.range_key = self.range_select.values[0]
 
         await interaction.response.defer(with_message=False)
         await self.target_message.edit(embed=self.parent_view.menu_embed(), view=self.parent_view)

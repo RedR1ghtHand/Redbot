@@ -3,7 +3,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 import settings
-from bot.ui.metrics.embeds import (
+from bot.ui.metrics import (
     ACTIVITY_FILENAME,
     LEADERBOARD_FILENAME,
     OVERVIEW_FILENAME,
@@ -13,7 +13,7 @@ from bot.ui.metrics.embeds import (
     render_overview_chart_png,
     render_weekday_trends_chart_png,
 )
-from database.gateways.analytics import AnalyticsGateway
+from database.gateways import AnalyticsGateway
 
 
 class MetricsCacheManager:

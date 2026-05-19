@@ -7,7 +7,6 @@ from .base import Base
 
 class Session(Base):
     creator_id: int | None = Field(default=None, description="Discord user ID who created the voice session")
-    # Legacy fields(for backwards compatibility)
     created_by: str | None = Field(default=None, description="Legacy creator identifier")
     channel_id: int = Field(..., description="voice channel ID")
     channel_name: str = Field(..., max_length=100, description="voice channel name")

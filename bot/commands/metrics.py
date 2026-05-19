@@ -1,11 +1,9 @@
 import disnake as discord
 from disnake.ext import commands
 
-from database.gateways.analytics import AnalyticsGateway
-from database.gateways.member import MemberGateway
-from bot.ui.metrics.embeds import build_top_embed
-from bot.services.metrics_cache import MetricsCacheManager
-from bot.ui.metrics.views import StatsMainView
+from bot.services import MetricsCacheManager
+from bot.ui.metrics import StatsMainView, build_top_embed
+from database.gateways import AnalyticsGateway, MemberGateway
 
 
 def register_metrics_commands(
