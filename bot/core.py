@@ -6,6 +6,8 @@ import disnake as discord
 from disnake.ext import commands
 
 import settings
+from bot.services import MetricsCacheManager
+from bot.ui.channels import ChannelControlView, build_private_voice_embed
 from database import (
     AnalyticsGateway,
     MemberGateway,
@@ -14,11 +16,7 @@ from database import (
 )
 from database.connection import db
 
-from bot.services import MetricsCacheManager
-from bot.ui.channels import ChannelControlView, build_private_voice_embed
-
-from .commands.fixes import register_fix_commands
-from .commands.metrics import register_metrics_commands
+from .commands import register_admin_commands, register_metrics_commands
 
 intents = discord.Intents.default()
 intents.guilds = True
@@ -38,7 +36,7 @@ metrics_cache_manager = MetricsCacheManager(analytics_gateway)
 
 temporary_channels: set[int] = set()
 register_metrics_commands(bot, analytics_gateway, member_gateway, metrics_cache_manager)
-register_fix_commands(bot, session_gateway, bot, temporary_channels, session_journal_gateway)
+register_admin_commands(bot, session_gateway, bot, temporary_channels, session_journal_gateway)
 
 
 @bot.event

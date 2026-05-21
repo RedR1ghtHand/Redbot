@@ -26,8 +26,9 @@ class RangeModal(discord.ui.Modal):
             )
             for key, (label, _days) in RANGE_PRESETS.items()
         ]
+        self.range_select_custom_id = "stats_range_select_value"
         self.range_select = discord.ui.StringSelect(
-            custom_id="stats_range_select_value",
+            custom_id=self.range_select_custom_id,
             placeholder="Select reporting range",
             min_values=1,
             max_values=1,
@@ -49,7 +50,22 @@ class RangeModal(discord.ui.Modal):
         )
 
     async def callback(self, interaction: discord.Interaction) -> None:
-        self.parent_view.range_key = self.range_select.values[0]
+        raw = interaction.values.get(self.range_select_custom_id)
+        if isinstance(raw, list):
+            range_key = raw[0] if raw else None
+        elif isinstance(raw, str):
+            range_key = raw
+        else:
+            range_key = None
+
+        if not range_key or range_key not in RANGE_PRESETS:
+            await interaction.response.send_message(
+                "Please select a reporting range from the menu.",
+                ephemeral=True,
+            )
+            return
+
+        self.parent_view.range_key = range_key
 
         await interaction.response.defer(with_message=False)
         await self.target_message.edit(embed=self.parent_view.menu_embed(), view=self.parent_view)
