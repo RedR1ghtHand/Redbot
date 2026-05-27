@@ -1,6 +1,7 @@
 import disnake as discord
 
-from bot.services.render.figures import (
+from bot.services.stats import StatsAggregationService, StatsChartService
+from bot.services.stats.figures import (
     ACTIVITY_FILENAME,
     LEADERBOARD_FILENAME,
     OVERVIEW_FILENAME,
@@ -8,7 +9,6 @@ from bot.services.render.figures import (
     activity_chart_timezone_label,
     build_leaderboard_figure,
 )
-from bot.services.stats import StatsAggregationService, StatsChartService
 from bot.ui.shared import format_duration_hhmmss
 from database.repositories import MemberRepository
 

@@ -3,8 +3,8 @@ from collections.abc import Awaitable, Callable
 from typing import Any
 
 import disnake as discord
-from cache import StatsChartCacheStore
 
+from .cache import StatsChartCacheStore
 from .figures import (
     ACTIVITY_FILENAME,
     LEADERBOARD_FILENAME,

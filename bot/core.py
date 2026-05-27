@@ -1,15 +1,24 @@
 import logging
-import random
-from datetime import timedelta
 
 import disnake as discord
 from disnake.ext import commands
 
 import settings
-from bot.services.stats import StatsAggregationService, StatsCacheStore, StatsChartCacheStore
-from bot.ui.channels import ChannelControlView, build_private_voice_embed
-from database.repositories import MemberRepository, SessionJournalRepository, SessionRepository, StatsReadRepository
+from bot.services.members import MemberService
+from bot.services.stats import (
+    StatsAggregationService,
+    StatsCacheStore,
+    StatsChartCacheStore,
+)
+from bot.services.voice_channels import VoiceChannelEventCoordinator
+from bot.ui.channels import ChannelControlView
 from database.connection import db
+from database.repositories import (
+    MemberRepository,
+    SessionJournalRepository,
+    SessionRepository,
+    StatsReadRepository,
+)
 
 from .commands import register_admin_commands, register_stats_commands
 
@@ -36,6 +45,13 @@ stats_service = StatsAggregationService(
 )
 
 temporary_channels: set[int] = set()
+member_service = MemberService(member_repository)
+voice_channel_coordinator = VoiceChannelEventCoordinator(
+    member_service=member_service,
+    session_repository=session_repository,
+    session_journal_repository=session_journal_repository,
+    temporary_channel_ids=temporary_channels,
+)
 register_stats_commands(bot, stats_service, member_repository)
 register_admin_commands(bot, session_repository, bot, temporary_channels, session_journal_repository)
 
@@ -86,7 +102,7 @@ async def on_ready():
                 ChannelControlView(
                     channel,
                     owner=owner,
-                    session_repository=session_repository,
+                    session_gateway=session_repository,
                     creator_record=creator_record,
                 )
             )
@@ -104,74 +120,7 @@ async def on_ready():
 
 @bot.event
 async def on_voice_state_update(member, before, after):
-    member_record = await member_repository.upsert_member(
-        member_id=member.id,
-        username=member.name,
-        public_name=member.display_name,
-        avatar_url=member.display_avatar.url,
-    )
-
-    if after.channel and after.channel.id in settings.CREATE_CHANNEL_IDS:
-        logging.info(f"{member} joined the create channel. Creating new VC...")
-        guild = member.guild
-        category = after.channel.category
-
-        new_channel = await guild.create_voice_channel(
-            name=random.choice(settings.DEFAULT_CHANNEL_NAMES),
-            category=category,
-            reason="Auto-created private channel"
-        )
-        temporary_channels.add(new_channel.id)
-
-        await session_repository.start_session(
-            creator_id=member.id,
-            channel_name=new_channel.name,
-            channel_id=new_channel.id,
-        )
-
-        await member.move_to(new_channel)
-
-        await discord.utils.sleep_until(discord.utils.utcnow() + timedelta(seconds=1))
-
-        try:
-            embed = build_private_voice_embed(member)
-
-            await new_channel.send(
-                embed=embed,
-                view=ChannelControlView(
-                    new_channel,
-                    member,
-                    session_repository,
-                    creator_record=member_record,
-                ),
-            )
-            logging.info(f"Sent control panel embed to {new_channel.name}")
-        except Exception as e:
-            logging.error(f"Failed to send control panel message to {new_channel.id}: {e}")
-
-    if after.channel and before.channel != after.channel and after.channel.id in temporary_channels:
-        active_session = await session_repository.get_active_session_by_channel(after.channel.id)
-        if active_session:
-            await session_journal_repository.open_entry(
-                session_id=after.channel.id,
-                member=member_record,
-            )
-
-    if before.channel and before.channel != after.channel:
-        if before.channel.id not in settings.CREATE_CHANNEL_IDS:
-            await session_repository.update_session(before.channel.id)
-
-            if before.channel.id in temporary_channels:
-                await session_journal_repository.close_entry(
-                    session_id=before.channel.id,
-                    member_id=member.id,
-                )
-
-            if before.channel.id in temporary_channels and len(before.channel.members) == 0:
-                await session_repository.update_and_end_session(before.channel.id)
-                logging.info(F"Session '{before.channel.name}' ended. Entry saved to the database")
-                await before.channel.delete(reason="Temporary VC empty")
-                temporary_channels.remove(before.channel.id)
+    await voice_channel_coordinator.on_voice_state_update(member, before, after)
 
 
 def run_bot():
