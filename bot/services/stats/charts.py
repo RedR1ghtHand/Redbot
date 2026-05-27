@@ -3,8 +3,9 @@ from collections.abc import Awaitable, Callable
 from typing import Any
 
 import disnake as discord
+from cache import StatsChartCacheStore
 
-from bot.services.render.figures import (
+from .figures import (
     ACTIVITY_FILENAME,
     LEADERBOARD_FILENAME,
     OVERVIEW_FILENAME,
@@ -15,8 +16,6 @@ from bot.services.render.figures import (
     render_overview_chart_png,
     render_weekday_trends_chart_png,
 )
-
-from .chart_cache import StatsChartCacheStore
 
 ChartRenderFn = Callable[[], Awaitable[bytes | None]]
 

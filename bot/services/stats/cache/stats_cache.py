@@ -11,7 +11,7 @@ T = TypeVar("T")
 class StatsCacheStore:
     def __init__(
         self,
-        cache_root: str = "analysis_output/cache/stats/data",
+        cache_root: str = "stats_output/cache/stats/data",
         cache_version: str = "v1",
     ):
         self.cache_root = Path(cache_root)
@@ -81,7 +81,7 @@ def cached_stats_payload(
             )
             cached_data = cache_store.get(key=key, ttl_seconds=ttl_seconds)
             if cached_data is not None:
-                return cached_data  # type: ignore[return-value]
+                return cached_data
 
             result = await func(self, *args, **kwargs)
             if isinstance(result, dict):

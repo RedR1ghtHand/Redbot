@@ -3,10 +3,10 @@ from datetime import datetime
 from database.models import Session
 from database.repositories import StatsReadRepository
 
-from .cache import StatsCacheStore, cached_stats_payload
+from .cache.chart_cache import StatsChartCacheStore
+from .cache.stats_cache import StatsCacheStore, cached_stats_payload
 from .calculators import ActivityCalculator, SnapshotCalculator, WeekdayTrendsCalculator
-from .chart_cache import StatsChartCacheStore
-from .chart_service import StatsChartService
+from .charts import StatsChartService
 
 
 class StatsAggregationService:
