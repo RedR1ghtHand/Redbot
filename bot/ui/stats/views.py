@@ -1,7 +1,6 @@
 import disnake as discord
 
-from bot.services import MetricsCacheManager
-from database.gateways import AnalyticsGateway
+from bot.services.stats import StatsAggregationService
 
 from .embeds import (
     build_activity_message,
@@ -74,19 +73,17 @@ class RangeModal(discord.ui.Modal):
 class StatsMainView(discord.ui.View):
     def __init__(
         self,
-        analytics_gateway: AnalyticsGateway,
-        cache_manager: MetricsCacheManager,
+        stats_service: StatsAggregationService,
         range_key: str = "week",
         top_limit: int = 5,
     ):
         super().__init__(timeout=300)
-        self.analytics_gateway = analytics_gateway
-        self.cache_manager = cache_manager
+        self.stats_service = stats_service
         self.range_key = range_key
         self.top_limit = top_limit
 
     async def _date_range_text(self, lookback_days: int | None) -> str:
-        range_start, range_end = await self.analytics_gateway.get_reporting_range(lookback_days=lookback_days)
+        range_start, range_end = await self.stats_service.get_reporting_range(lookback_days=lookback_days)
         return f"{range_start:%d.%m.%Y} - {range_end:%d.%m.%Y}"
 
     def menu_embed(self) -> discord.Embed:
@@ -97,7 +94,7 @@ class StatsMainView(discord.ui.View):
                 f"Current range: **{current_range}**\n\n"
                 "Use buttons below:\n"
                 "- **Range**: change reporting period\n"
-                "- **Detailed metrics**: send overview + leaderboard + activity chart embeds\n"
+                "- **Detailed stats**: send overview + leaderboard + activity chart embeds\n"
                 "- **All Stats**: show full stats snapshot"
             ),
             color=discord.Color.blurple(),
@@ -107,12 +104,12 @@ class StatsMainView(discord.ui.View):
     async def range_button(self, button: discord.ui.Button, interaction: discord.Interaction) -> None:
         await interaction.response.send_modal(RangeModal(parent_view=self, target_message=interaction.message))
 
-    @discord.ui.button(label="Detailed metrics", style=discord.ButtonStyle.primary)
-    async def detailed_metrics(self, button: discord.ui.Button, interaction: discord.Interaction) -> None:
+    @discord.ui.button(label="Detailed stats", style=discord.ButtonStyle.primary)
+    async def detailed_stats(self, button: discord.ui.Button, interaction: discord.Interaction) -> None:
         member = interaction.author if isinstance(interaction.author, discord.Member) else None
         if member is None or not member.guild_permissions.administrator:
             await interaction.response.send_message(
-                "Only administrators can use Detailed metrics.",
+                "Only administrators can use Detailed stats.",
                 ephemeral=True,
             )
             return
@@ -121,42 +118,43 @@ class StatsMainView(discord.ui.View):
 
         lookback_days = range_days(self.range_key)
         scope_label = range_label(self.range_key)
-        cached_payload = await self.cache_manager.get_or_build_detailed_metrics(
+        payload = await self.stats_service.get_detailed_stats(
             range_key=self.range_key,
             lookback_days=lookback_days,
             top_limit=self.top_limit,
         )
-        stats = cached_payload["stats"]
-        date_range_text = cached_payload["date_range_text"]
-        activity_points = cached_payload["activity_points"]
-        weekday_trends = cached_payload["weekday_trends"]
-        image_paths = cached_payload["images"]
+        stats = payload["stats"]
+        date_range_text = payload["date_range_text"]
+        activity_points = payload["activity_points"]
+        weekday_trends = payload["weekday_trends"]
+
+        chart_service = self.stats_service.chart_service
 
         overview_embed, overview_file = await build_overview_message(
             stats=stats,
             scope_label=scope_label,
             date_range_text=date_range_text,
-            cached_image_path=image_paths.get("overview"),
+            chart_service=chart_service,
         )
 
         leaderboard_embed, leaderboard_file = await build_leaderboard_message(
             stats=stats,
             scope_label=scope_label,
             date_range_text=date_range_text,
-            cached_image_path=image_paths.get("leaderboard"),
+            chart_service=chart_service,
         )
 
         activity_embed, activity_file = await build_activity_message(
             activity_points=activity_points,
             scope_label=scope_label,
             date_range_text=date_range_text,
-            cached_image_path=image_paths.get("activity"),
+            chart_service=chart_service,
         )
         weekday_trends_embed, weekday_trends_file = await build_weekday_trends_message(
             weekday_trends=weekday_trends,
             scope_label=scope_label,
             date_range_text=date_range_text,
-            cached_image_path=image_paths.get("weekday_trends"),
+            chart_service=chart_service,
         )
 
         embeds = [overview_embed, leaderboard_embed, activity_embed, weekday_trends_embed]
@@ -176,7 +174,7 @@ class StatsMainView(discord.ui.View):
     async def all_stats(self, button: discord.ui.Button, interaction: discord.Interaction) -> None:
         lookback_days = range_days(self.range_key)
         scope_label = range_label(self.range_key)
-        stats = await self.analytics_gateway.get_stats_snapshot(
+        stats = await self.stats_service.get_stats_snapshot(
             lookback_days=lookback_days,
             top_limit=self.top_limit,
         )

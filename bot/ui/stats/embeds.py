@@ -1,23 +1,17 @@
-import asyncio
-from pathlib import Path
-
 import disnake as discord
 
-from bot.ui.shared import format_duration_hhmmss
-from database.gateways import AnalyticsGateway, MemberGateway
-
-from .charts import (
+from bot.services.render.figures import (
     ACTIVITY_FILENAME,
     LEADERBOARD_FILENAME,
     OVERVIEW_FILENAME,
     WEEKDAY_TRENDS_FILENAME,
     activity_chart_timezone_label,
-    build_activity_figure,
     build_leaderboard_figure,
-    build_overview_figure,
-    build_weekday_trends_figure,
-    fig_to_file,
 )
+from bot.services.stats import StatsAggregationService, StatsChartService
+from bot.ui.shared import format_duration_hhmmss
+from database.repositories import MemberRepository
+
 from .messages import stats_embed_scope_title, top_messages
 
 
@@ -66,11 +60,11 @@ def build_stats_embed(metric_key: str, stats: dict, scope_label: str) -> discord
     return embed
 
 
-def _metrics_title(scope_label: str, metric_type: str) -> str:
+def _stats_title(scope_label: str, metric_type: str) -> str:
     return f"Stats | {scope_label} | {metric_type}"
 
 
-def _metrics_description(date_range_text: str, details: str | None = None) -> str:
+def _stats_description(date_range_text: str, details: str | None = None) -> str:
     base = f"Date range: `{date_range_text}`"
     if details:
         return f"{base}\n{details}"
@@ -81,22 +75,20 @@ async def build_overview_message(
     stats: dict,
     scope_label: str,
     date_range_text: str,
-    cached_image_path: str | None = None,
+    chart_service: StatsChartService | None = None,
 ) -> tuple[discord.Embed, discord.File | None]:
     embed = discord.Embed(
-        title=_metrics_title(scope_label, "Overview"),
-        description=_metrics_description(
+        title=_stats_title(scope_label, "Overview"),
+        description=_stats_description(
             date_range_text,
-            details="High-level comparison chart for voice activity metrics.",
+            details="High-level comparison chart for voice activity stats.",
         ),
         color=discord.Color.blurple(),
     )
 
-    if cached_image_path and Path(cached_image_path).exists():
-        file = discord.File(cached_image_path, filename=OVERVIEW_FILENAME)
-    else:
-        fig = build_overview_figure(stats)
-        file = await asyncio.to_thread(fig_to_file, fig, OVERVIEW_FILENAME, False)
+    file = None
+    if chart_service is not None:
+        file = await chart_service.render_overview_file(stats)
     if file:
         embed.set_image(url=f"attachment://{OVERVIEW_FILENAME}")
     return embed, file
@@ -106,28 +98,27 @@ async def build_leaderboard_message(
     stats: dict,
     scope_label: str,
     date_range_text: str,
-    cached_image_path: str | None = None,
+    chart_service: StatsChartService | None = None,
 ) -> tuple[discord.Embed, discord.File | None]:
     embed = discord.Embed(
-        title=_metrics_title(scope_label, "Leaderboards"),
-        description=_metrics_description(
+        title=_stats_title(scope_label, "Leaderboards"),
+        description=_stats_description(
             date_range_text,
-            details="Top 5 users by participant + creator hours (ranked on the sum). Orange = time in others’ channels (journal); blue = time in channels you created (session duration).",
+            details="Top 5 users by participant + creator hours (ranked on the sum). Orange = time in others' channels (journal); blue = time in channels you created (session duration).",
         ),
         color=discord.Color.blurple(),
     )
-    if cached_image_path and Path(cached_image_path).exists():
-        file = discord.File(cached_image_path, filename=LEADERBOARD_FILENAME)
+
+    file = None
+    if chart_service is not None:
+        file = await chart_service.render_leaderboard_file(stats)
+
+    if file is not None:
         embed.set_image(url=f"attachment://{LEADERBOARD_FILENAME}")
         return embed, file
 
-    fig = build_leaderboard_figure(stats)
-    if fig is not None:
-        file = await asyncio.to_thread(fig_to_file, fig, LEADERBOARD_FILENAME, True)
-        if file:
-            embed.set_image(url=f"attachment://{LEADERBOARD_FILENAME}")
-            return embed, file
-    embed.add_field(name="No leaderboard data", value="No voice activity in this range.", inline=False)
+    if build_leaderboard_figure(stats) is None:
+        embed.add_field(name="No leaderboard data", value="No voice activity in this range.", inline=False)
     return embed, None
 
 
@@ -135,13 +126,13 @@ async def build_activity_message(
     activity_points: list[dict],
     scope_label: str,
     date_range_text: str,
-    cached_image_path: str | None = None,
+    chart_service: StatsChartService | None = None,
     timezone_label: str | None = None,
 ) -> tuple[discord.Embed, discord.File | None]:
     tz = timezone_label or activity_chart_timezone_label()
     embed = discord.Embed(
-        title=_metrics_title(scope_label, "Activity"),
-        description=_metrics_description(
+        title=_stats_title(scope_label, "Activity"),
+        description=_stats_description(
             date_range_text,
             details=f"Average active participants by hour of day (local clock in {tz}).",
         ),
@@ -151,13 +142,9 @@ async def build_activity_message(
         embed.add_field(name="Activity", value="No activity data for selected range.", inline=False)
         return embed, None
 
-    if cached_image_path and Path(cached_image_path).exists():
-        file = discord.File(cached_image_path, filename=ACTIVITY_FILENAME)
-    else:
-        fig = build_activity_figure(activity_points, timezone_label=tz)
-        if fig is None:
-            return embed, None
-        file = await asyncio.to_thread(fig_to_file, fig, ACTIVITY_FILENAME, False)
+    file = None
+    if chart_service is not None:
+        file = await chart_service.render_activity_file(activity_points, timezone_label=tz)
     if file:
         embed.set_image(url=f"attachment://{ACTIVITY_FILENAME}")
     return embed, file
@@ -167,7 +154,7 @@ async def build_weekday_trends_message(
     weekday_trends: dict,
     scope_label: str,
     date_range_text: str,
-    cached_image_path: str | None = None,
+    chart_service: StatsChartService | None = None,
 ) -> tuple[discord.Embed, discord.File | None]:
     mode = weekday_trends.get("mode", "weekday_average")
     points = weekday_trends.get("points", [])
@@ -176,8 +163,8 @@ async def build_weekday_trends_message(
         "This week (Monday to Sunday)." if mode == "this_week" else "Averages by weekday across selected range."
     )
     embed = discord.Embed(
-        title=_metrics_title(scope_label, "Weekday Trends"),
-        description=_metrics_description(date_range_text, details=details),
+        title=_stats_title(scope_label, "Weekday Trends"),
+        description=_stats_description(date_range_text, details=details),
         color=discord.Color.blurple(),
     )
 
@@ -185,27 +172,23 @@ async def build_weekday_trends_message(
         embed.add_field(name="Weekday trends", value="No data for selected range.", inline=False)
         return embed, None
 
-    if cached_image_path and Path(cached_image_path).exists():
-        file = discord.File(cached_image_path, filename=WEEKDAY_TRENDS_FILENAME)
-    else:
-        fig = build_weekday_trends_figure(points, summary=summary)
-        if fig is None:
-            return embed, None
-        file = await asyncio.to_thread(fig_to_file, fig, WEEKDAY_TRENDS_FILENAME, True)
+    file = None
+    if chart_service is not None:
+        file = await chart_service.render_weekday_trends_file(weekday_trends)
     if file:
         embed.set_image(url=f"attachment://{WEEKDAY_TRENDS_FILENAME}")
     return embed, file
 
 
 async def build_top_embed(
-    analytics_gateway: AnalyticsGateway,
-    member_gateway: MemberGateway,
+    stats_service: StatsAggregationService,
+    member_repository: MemberRepository,
     limit: int = 10,
 ) -> tuple[discord.Embed | None, str | None]:
     limit = limit if limit <= 10 else 10
-    sessions = await analytics_gateway.longest_sessions_all_time(limit=limit)
+    sessions = await stats_service.longest_sessions_all_time(limit=limit)
     member_ids = [session.creator_id for session in sessions if session.creator_id is not None]
-    members_map = await member_gateway.get_members_map(member_ids)
+    members_map = await member_repository.get_members_map(member_ids)
 
     top_msg = top_messages(limit)
     title_template = top_msg["title_template"]
