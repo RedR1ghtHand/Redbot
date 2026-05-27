@@ -1,22 +1,20 @@
 import disnake as discord
 from disnake.ext import commands
 
-from bot.services import MetricsCacheManager
-from bot.ui.metrics import StatsMainView, build_top_embed
-from database.gateways import AnalyticsGateway, MemberGateway
+from bot.services.stats import StatsAggregationService
+from bot.ui.stats import StatsMainView, build_top_embed
+from database.repositories import MemberRepository
 
 
-def register_metrics_commands(
+def register_stats_commands(
     bot: commands.InteractionBot,
-    analytics_gateway: AnalyticsGateway,
-    member_gateway: MemberGateway,
-    metrics_cache_manager: MetricsCacheManager,
+    stats_service: StatsAggregationService,
+    member_repository: MemberRepository,
 ) -> None:
     @bot.slash_command(name="stats", description="Open interactive stats menu")
     async def stats_command(interaction: discord.ApplicationCommandInteraction) -> None:
         menu_view = StatsMainView(
-            analytics_gateway=analytics_gateway,
-            cache_manager=metrics_cache_manager,
+            stats_service=stats_service,
         )
         await interaction.response.send_message(embed=menu_view.menu_embed(), view=menu_view)
 
@@ -26,8 +24,8 @@ def register_metrics_commands(
         limit: int = commands.Param(default=10, ge=1, le=10),
     ) -> None:
         embed, no_data_text = await build_top_embed(
-            analytics_gateway=analytics_gateway,
-            member_gateway=member_gateway,
+            stats_service=stats_service,
+            member_repository=member_repository,
             limit=limit,
         )
         if embed is None:
