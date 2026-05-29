@@ -1,3 +1,6 @@
+from dataclasses import dataclass
+from typing import Callable
+
 import disnake as discord
 
 from bot.services.stats import StatsAggregationService, StatsChartService
@@ -11,51 +14,68 @@ from bot.services.stats.figures import (
 )
 from bot.ui.shared import format_duration_hhmmss
 from database.repositories import MemberRepository
+from utils import get_message
 
 from .messages import stats_embed_scope_title, top_messages
+
+ALL_METRICS_KEY = "all"
+
+
+def _format_total_voice_time(stats: dict) -> str:
+    return f"`{format_duration_hhmmss(stats.get('total_voice_seconds', 0))}`"
+
+
+def _format_sessions(stats: dict) -> str:
+    count = stats.get("sessions_count", 0)
+    avg_seconds = stats.get("avg_session_seconds", 0)
+    return f"Count: `{count}`\nAvg Duration: `{format_duration_hhmmss(avg_seconds)}`"
+
+
+def _format_unique_participants(stats: dict) -> str:
+    return f"`{stats.get('unique_participants', 0)}`"
+
+
+def _format_avg_participants(stats: dict) -> str:
+    return f"`{stats.get('avg_participants_per_session', 0):.2f}`"
+
+
+def _format_top_participants(stats: dict) -> str:
+    participants = stats.get("top_participants") or []
+    lines = "\n".join(
+        f"{idx}. **{row['name']}** - `{format_duration_hhmmss(row['seconds'])}`"
+        for idx, row in enumerate(participants, start=1)
+    )
+    return lines or get_message("no_data")
+
+
+@dataclass(frozen=True)
+class StatsMetricSpec:
+    key: str
+    name_message_key: str
+    formatter: Callable[[dict], str]
+
+
+STATS_METRIC_SPECS: list[StatsMetricSpec] = [
+    StatsMetricSpec("total_voice_time", "embeds.stats.fields.total_voice_time", _format_total_voice_time),
+    StatsMetricSpec("sessions", "embeds.stats.fields.sessions", _format_sessions),
+    StatsMetricSpec("unique_participants", "embeds.stats.fields.unique_participants", _format_unique_participants),
+    StatsMetricSpec("avg_participants", "embeds.stats.fields.avg_participants", _format_avg_participants),
+    StatsMetricSpec("top_participants", "embeds.stats.fields.top_participants", _format_top_participants),
+]
 
 
 def build_stats_embed(metric_key: str, stats: dict, scope_label: str) -> discord.Embed:
     embed = discord.Embed(title=stats_embed_scope_title(scope_label), color=discord.Color.blurple())
 
-    if metric_key in ("all", "total_voice_time"):
+    selected_specs = [
+        spec for spec in STATS_METRIC_SPECS if metric_key == ALL_METRICS_KEY or spec.key == metric_key
+    ]
+    for position, spec in enumerate(selected_specs, start=1):
         embed.add_field(
-            name="1) Total Voice Time",
-            value=f"`{format_duration_hhmmss(stats['total_voice_seconds'])}`",
+            name=f"{position}) {get_message(spec.name_message_key)}",
+            value=spec.formatter(stats),
             inline=False,
         )
-
-    if metric_key in ("all", "sessions"):
-        embed.add_field(
-            name="2) Sessions",
-            value=(
-                f"Count: `{stats['sessions_count']}`\n"
-                f"Avg Duration: `{format_duration_hhmmss(stats['avg_session_seconds'])}`"
-            ),
-            inline=False,
-        )
-
-    if metric_key in ("all", "unique_participants"):
-        embed.add_field(
-            name="3) Unique Participants",
-            value=f"`{stats['unique_participants']}`",
-            inline=False,
-        )
-
-    if metric_key in ("all", "avg_participants"):
-        embed.add_field(
-            name="4) Avg Participants per Session",
-            value=f"`{stats['avg_participants_per_session']:.2f}`",
-            inline=False,
-        )
-
-    if metric_key in ("all", "top_participants"):
-        participants = stats["top_participants"]
-        participants_value = "\n".join(
-            f"{idx}. **{row['name']}** - `{format_duration_hhmmss(row['seconds'])}`"
-            for idx, row in enumerate(participants, start=1)
-        ) or "No data"
-        embed.add_field(name="5) Top Participants", value=participants_value, inline=False)
 
     return embed
 

@@ -21,6 +21,14 @@ embeds:
     color: red
     medals: ["🥇", "🥈", "🥉"]
 
+  stats:
+    fields:
+      total_voice_time: "Total Voice Time"
+      sessions: "Sessions"
+      unique_participants: "Unique Participants"
+      avg_participants: "Avg Participants per Session"
+      top_participants: "Top Participants"
+
 modals:
   rename:
     title: "Rename Your Voice Channel"
@@ -50,3 +58,14 @@ buttons:
     msg_error: "Only **{creator_label}** can change the limit!"
   set_limit:
     label: "👥*"
+  stats_detailed_metrics:
+    label: "📈Detailed graphs"
+    msg_error: "Only administrators can use this button."
+  stats_all:
+    label: "📄All stats"
+    msg_error: "Only administrators can use this button."
+  stats_set_range:
+    label: "📅Range"
+    msg_error: "Some error occurred."
+
+no_data: "No data"
