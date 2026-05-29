@@ -11,7 +11,7 @@ T = TypeVar("T")
 class StatsCacheStore:
     def __init__(
         self,
-        cache_root: str = "stats_output/cache/stats/data",
+        cache_root: str = "stats_output/cache/data",
         cache_version: str = "v1",
     ):
         self.cache_root = Path(cache_root)

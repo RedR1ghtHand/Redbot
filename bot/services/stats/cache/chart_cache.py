@@ -8,8 +8,8 @@ from .cache_keys import build_payload_digest
 class StatsChartCacheStore:
     def __init__(
         self,
-        cache_root: str = "analysis_output/cache/stats/charts",
-        cache_version: str = "v2",
+        cache_root: str = "stats_output/cache/charts",
+        cache_version: str = "v1",
     ):
         self.cache_root = Path(cache_root)
         self.cache_version = cache_version
