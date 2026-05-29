@@ -149,19 +149,20 @@ def build_activity_figure(activity_points: list[dict], timezone_label: str | Non
     return fig
 
 
+WEEKDAY_ORDER = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
+
+
 def build_weekday_trends_figure(weekday_points: list[dict], summary: dict | None = None):
     if not weekday_points:
         return None
     df = pd.DataFrame(weekday_points)
     value_columns = [
-        "avg_voice_time_hours",
-        "avg_users_participated",
+        "avg_active_participants",
         "avg_time_per_user_hours",
     ]
     melted = df.melt(id_vars=["weekday"], value_vars=value_columns, var_name="metric", value_name="value")
     metric_labels = {
-        "avg_voice_time_hours": "Avg voice time (participant-hours)",
-        "avg_users_participated": "Avg users participated",
+        "avg_active_participants": "Avg active participants",
         "avg_time_per_user_hours": "Avg time per user (hours)",
     }
     melted["metric"] = melted["metric"].map(metric_labels)
@@ -173,12 +174,12 @@ def build_weekday_trends_figure(weekday_points: list[dict], summary: dict | None
         markers=True,
         title="Weekday Voice Trends (Mon-Sun)",
         labels={"weekday": "Weekday", "value": "Value", "metric": "Metric"},
+        category_orders={"weekday": WEEKDAY_ORDER},
     )
     if summary:
         summary_text = (
             "Averages:<br>"
-            f"- time in voices: {format_duration_hhmmss(summary.get('avg_voice_time_seconds', 0))}<br>"
-            f"- users: {summary.get('avg_users_participated', 0.0):.2f}<br>"
+            f"- active users/day: {summary.get('avg_active_participants', 0.0):.2f}<br>"
             f"- time per user: {format_duration_hhmmss(summary.get('avg_time_per_user_seconds', 0))}"
         )
         fig.add_annotation(
