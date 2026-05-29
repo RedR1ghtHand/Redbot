@@ -40,11 +40,7 @@ class WeekdayTrendsCalculator:
 
             start = max(joined_at, range_start)
             end = min(range_end, max(start, left_at))
-            duration = max(0.0, (end - start).total_seconds())
-            local_date = start.astimezone(tz).date()
-
-            day_participants.setdefault(local_date, set()).add(participant_id)
-            day_seconds[local_date] = day_seconds.get(local_date, 0.0) + duration
+            self._accumulate_by_local_day(start, end, tz, participant_id, day_participants, day_seconds)
 
         # Bucket each calendar date in the range by weekday.
         # Active participants average over every occurrence of the weekday (quiet days count as 0).
@@ -82,6 +78,27 @@ class WeekdayTrendsCalculator:
 
         summary = self._build_summary(day_participants, day_seconds)
         return {"mode": "weekday_average", "points": weekday_points, "summary": summary}
+
+    @staticmethod
+    def _accumulate_by_local_day(
+        start: datetime,
+        end: datetime,
+        tz,
+        participant_id: int,
+        day_participants: dict[date, set[int]],
+        day_seconds: dict[date, float],
+    ) -> None:
+        start_local = start.astimezone(tz)
+        end_local = end.astimezone(tz)
+        cursor = start_local
+        while cursor < end_local:
+            next_midnight = (cursor + timedelta(days=1)).replace(hour=0, minute=0, second=0, microsecond=0)
+            segment_end = min(end_local, next_midnight)
+            seconds = max(0.0, (segment_end - cursor).total_seconds())
+            day = cursor.date()
+            day_participants.setdefault(day, set()).add(participant_id)
+            day_seconds[day] = day_seconds.get(day, 0.0) + seconds
+            cursor = next_midnight
 
     @staticmethod
     def _build_summary(day_participants: dict[date, set[int]], day_seconds: dict[date, float]) -> dict:
