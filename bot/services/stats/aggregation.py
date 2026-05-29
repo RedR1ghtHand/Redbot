@@ -104,5 +104,4 @@ class StatsAggregationService:
         return await self._weekday_trends.compute(
             range_start=range_start,
             range_end=range_end,
-            lookback_days=lookback_days,
         )

@@ -156,12 +156,8 @@ async def build_weekday_trends_message(
     date_range_text: str,
     chart_service: StatsChartService | None = None,
 ) -> tuple[discord.Embed, discord.File | None]:
-    mode = weekday_trends.get("mode", "weekday_average")
     points = weekday_trends.get("points", [])
-    summary = weekday_trends.get("summary", {})
-    details = (
-        "This week (Monday to Sunday)." if mode == "this_week" else "Averages by weekday across selected range."
-    )
+    details = "Averages by weekday across the selected range."
     embed = discord.Embed(
         title=_stats_title(scope_label, "Weekday Trends"),
         description=_stats_description(date_range_text, details=details),

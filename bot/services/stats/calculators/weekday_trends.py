@@ -1,4 +1,4 @@
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timedelta
 
 from database.repositories import StatsReadRepository
 
@@ -11,9 +11,7 @@ class WeekdayTrendsCalculator:
         self,
         range_start: datetime,
         range_end: datetime,
-        lookback_days: int | None = None,
     ) -> dict:
-        now = datetime.now(timezone.utc)
         range_start = self.stats_read_repository.ensure_utc(range_start)
         range_end = self.stats_read_repository.ensure_utc(range_end)
 
@@ -67,74 +65,51 @@ class WeekdayTrendsCalculator:
         weekday_names = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
         weekday_points: list[dict] = []
 
-        if lookback_days == 7:
-            week_start = (now - timedelta(days=now.weekday())).replace(hour=0, minute=0, second=0, microsecond=0)
-            for weekday_index, weekday_name in enumerate(weekday_names):
-                day = (week_start + timedelta(days=weekday_index)).date()
-                day_data = daily_metrics.get(
-                    day, {"total_participant_seconds": 0, "total_participants": 0, "sessions_count": 0}
-                )
-                sessions_count = day_data["sessions_count"]
-                total_participant_seconds = day_data["total_participant_seconds"]
-                total_participants = day_data["total_participants"]
-                avg_voice_time = total_participant_seconds / sessions_count if sessions_count else 0.0
-                avg_users = total_participants / sessions_count if sessions_count else 0.0
-                avg_time_per_user = total_participant_seconds / total_participants if total_participants else 0.0
-                weekday_points.append(
-                    {
-                        "weekday": weekday_name,
-                        "avg_voice_time_hours": avg_voice_time / 3600,
-                        "avg_users_participated": avg_users,
-                        "avg_time_per_user_hours": avg_time_per_user / 3600,
-                    }
-                )
-            mode = "this_week"
-        else:
-            cursor_day = range_start.date()
-            end_day = range_end.date()
-            bucketed: dict[int, list[dict]] = {idx: [] for idx in range(7)}
-            while cursor_day <= end_day:
-                day_data = daily_metrics.get(
-                    cursor_day, {"total_participant_seconds": 0, "total_participants": 0, "sessions_count": 0}
-                )
-                sessions_count = day_data["sessions_count"]
-                total_participant_seconds = day_data["total_participant_seconds"]
-                total_participants = day_data["total_participants"]
-                bucketed[cursor_day.weekday()].append(
-                    {
-                        "avg_voice_time_hours": (
-                            (total_participant_seconds / sessions_count) / 3600 if sessions_count else 0.0
-                        ),
-                        "avg_users_participated": (total_participants / sessions_count if sessions_count else 0.0),
-                        "avg_time_per_user_hours": (
-                            (total_participant_seconds / total_participants) / 3600 if total_participants else 0.0
-                        ),
-                    }
-                )
-                cursor_day += timedelta(days=1)
+        cursor_day = range_start.date()
+        end_day = range_end.date()
+        bucketed: dict[int, list[dict]] = {idx: [] for idx in range(7)}
+        while cursor_day <= end_day:
+            day_data = daily_metrics.get(
+                cursor_day, {"total_participant_seconds": 0, "total_participants": 0, "sessions_count": 0}
+            )
+            sessions_count = day_data["sessions_count"]
+            total_participant_seconds = day_data["total_participant_seconds"]
+            total_participants = day_data["total_participants"]
+            bucketed[cursor_day.weekday()].append(
+                {
+                    "avg_voice_time_hours": (
+                        (total_participant_seconds / sessions_count) / 3600 if sessions_count else 0.0
+                    ),
+                    "avg_users_participated": (total_participants / sessions_count if sessions_count else 0.0),
+                    "avg_time_per_user_hours": (
+                        (total_participant_seconds / total_participants) / 3600 if total_participants else 0.0
+                    ),
+                }
+            )
+            cursor_day += timedelta(days=1)
 
-            for weekday_index, weekday_name in enumerate(weekday_names):
-                rows = bucketed[weekday_index]
-                count = len(rows)
-                if count == 0:
-                    weekday_points.append(
-                        {
-                            "weekday": weekday_name,
-                            "avg_voice_time_hours": 0.0,
-                            "avg_users_participated": 0.0,
-                            "avg_time_per_user_hours": 0.0,
-                        }
-                    )
-                    continue
+        for weekday_index, weekday_name in enumerate(weekday_names):
+            rows = bucketed[weekday_index]
+            count = len(rows)
+            if count == 0:
                 weekday_points.append(
                     {
                         "weekday": weekday_name,
-                        "avg_voice_time_hours": sum(row["avg_voice_time_hours"] for row in rows) / count,
-                        "avg_users_participated": sum(row["avg_users_participated"] for row in rows) / count,
-                        "avg_time_per_user_hours": sum(row["avg_time_per_user_hours"] for row in rows) / count,
+                        "avg_voice_time_hours": 0.0,
+                        "avg_users_participated": 0.0,
+                        "avg_time_per_user_hours": 0.0,
                     }
                 )
-            mode = "weekday_average"
+                continue
+            weekday_points.append(
+                {
+                    "weekday": weekday_name,
+                    "avg_voice_time_hours": sum(row["avg_voice_time_hours"] for row in rows) / count,
+                    "avg_users_participated": sum(row["avg_users_participated"] for row in rows) / count,
+                    "avg_time_per_user_hours": sum(row["avg_time_per_user_hours"] for row in rows) / count,
+                }
+            )
+        mode = "weekday_average"
 
         summary = {
             "avg_voice_time_seconds": (

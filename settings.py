@@ -42,10 +42,11 @@ MONGO_DB = os.getenv("MONGO_DB", "redbot")
 
 JOURNAL_METRICS_START_DATE = _parse_env_utc_date("JOURNAL_METRICS_START_DATE", "2026-05-01")
 
+with open("messages_static.yaml", "r", encoding="utf-8") as f:
+    MESSAGES_STATIC = yaml.safe_load(f)
+
 if os.path.exists("messages.yaml"):
     with open("messages.yaml", "r", encoding="utf-8") as f:
         MESSAGES = yaml.safe_load(f)
-
 else:
-    with open("messages_static.yaml", "r", encoding="utf-8") as f:
-        MESSAGES = yaml.safe_load(f)
+    MESSAGES = MESSAGES_STATIC
