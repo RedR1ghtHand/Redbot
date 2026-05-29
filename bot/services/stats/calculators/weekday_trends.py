@@ -40,9 +40,6 @@ class WeekdayTrendsCalculator:
             end = min(range_end, max(start, left_at))
             self._accumulate_by_local_day(start, end, tz, participant_id, day_participants, day_seconds)
 
-        # Bucket each calendar date in the range by weekday.
-        # Active participants average over every occurrence of the weekday (quiet days count as 0).
-        # Time-per-user averages only over days that actually had activity.
         active_by_weekday: dict[int, list[float]] = {idx: [] for idx in range(7)}
         time_per_user_by_weekday: dict[int, list[float]] = {idx: [] for idx in range(7)}
 
@@ -100,14 +97,21 @@ class WeekdayTrendsCalculator:
 
     @staticmethod
     def _build_summary(day_participants: dict[date, set[int]], day_seconds: dict[date, float]) -> dict:
-        active_days = [len(users) for users in day_participants.values() if users]
-        avg_active = sum(active_days) / len(active_days) if active_days else 0.0
+        active_counts: list[int] = []
+        daily_time_per_user_seconds: list[float] = []
+        for day, users in day_participants.items():
+            count = len(users)
+            if count == 0:
+                continue
+            active_counts.append(count)
+            daily_time_per_user_seconds.append(day_seconds.get(day, 0.0) / count)
 
-        all_participants: set[int] = set()
-        for users in day_participants.values():
-            all_participants |= users
-        total_seconds = sum(day_seconds.values())
-        avg_time_per_user_seconds = total_seconds / len(all_participants) if all_participants else 0.0
+        avg_active = sum(active_counts) / len(active_counts) if active_counts else 0.0
+        avg_time_per_user_seconds = (
+            sum(daily_time_per_user_seconds) / len(daily_time_per_user_seconds)
+            if daily_time_per_user_seconds
+            else 0.0
+        )
 
         return {
             "avg_active_participants": avg_active,
