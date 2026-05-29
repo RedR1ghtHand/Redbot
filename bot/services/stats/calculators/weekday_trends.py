@@ -20,17 +20,15 @@ class WeekdayTrendsCalculator:
         tz = settings.get_reporting_timezone()
 
         journals = await self.stats_read_repository.get_journals_overlapping_range(range_start, range_end)
-
-        # Per local calendar date: distinct participants and total participation seconds (clipped to range).
         day_participants: dict[date, set[int]] = {}
         day_seconds: dict[date, float] = {}
 
         for entry in journals:
             joined_at = entry.get("user_joined_at")
-            left_at = entry.get("user_left_at") or range_end
+            left_at = entry.get("user_left_at")
             user_data = entry.get("user_joined") or {}
             participant_id = user_data.get("member_id")
-            if joined_at is None or participant_id is None:
+            if joined_at is None or left_at is None or participant_id is None:
                 continue
 
             joined_at = self.stats_read_repository.ensure_utc(joined_at)
