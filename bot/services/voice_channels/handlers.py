@@ -172,10 +172,10 @@ async def dispatch_voice_events(
     events: list[VoiceEvent],
 ) -> None:
     registry: dict[type[VoiceEvent], VoiceHandler] = {
-        JoinedCreateHubChannel: handle_joined_create_hub_channel,  # type: ignore[dict-item]
-        EnteredTemporarySessionChannel: handle_entered_temporary_session_channel,  # type: ignore[dict-item]
-        LeftVoiceChannel: handle_left_voice_channel,  # type: ignore[dict-item]
-        TemporaryChannelBecameEmpty: handle_temporary_channel_became_empty,  # type: ignore[dict-item]
+        JoinedCreateHubChannel: handle_joined_create_hub_channel,
+        EnteredTemporarySessionChannel: handle_entered_temporary_session_channel,
+        LeftVoiceChannel: handle_left_voice_channel,
+        TemporaryChannelBecameEmpty: handle_temporary_channel_became_empty,
     }
     for event in events:
         handler = registry.get(type(event))

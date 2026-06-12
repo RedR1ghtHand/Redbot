@@ -3,32 +3,20 @@ import os
 import sys
 
 
-def setup_logging():
+def setup_logging() -> None:
     log_level = os.getenv("LOG_LEVEL", "INFO").upper()
     log_level_value = getattr(logging, log_level, logging.INFO)
 
-    for handler in logging.root.handlers[:]:
-        logging.root.removeHandler(handler)
-
-    handler = logging.StreamHandler(sys.stdout)
-    formatter = logging.Formatter(
-        "%(asctime)s [%(levelname)s] %(name)s: %(message)s",
-        "%Y-%m-%d %H:%M:%S"
+    logging.basicConfig(
+        level=log_level_value,
+        format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
+        datefmt="%Y-%m-%d %H:%M:%S",
+        stream=sys.stdout,
+        force=True,
     )
-    handler.setFormatter(formatter)
 
-    root_logger = logging.getLogger()
-    root_logger.setLevel(log_level_value)
-    root_logger.addHandler(handler)
+    if log_level_value > logging.DEBUG:
+        for name in ("disnake.gateway", "disnake.http"):
+            logging.getLogger(name).setLevel(logging.WARNING)
 
-    noisy_libs = ["discord", "discord.client", "discord.gateway",
-                  "pymongo", "motor", "asyncio"]
-
-    for name in noisy_libs:
-        logger = logging.getLogger(name)
-        logger.setLevel(log_level_value)
-        logger.handlers.clear()
-        logger.addHandler(handler)
-        logger.propagate = False
-
-    logging.info(f"Logging initialized with level: {log_level}")
+    logging.info("Logging initialized with level: %s", log_level)

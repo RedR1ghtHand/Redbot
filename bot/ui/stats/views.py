@@ -1,6 +1,7 @@
 import disnake as discord
 
 from bot.services.stats import StatsAggregationService
+from utils import get_message
 
 from .embeds import (
     build_activity_message,
@@ -9,7 +10,7 @@ from .embeds import (
     build_stats_embed,
     build_weekday_trends_message,
 )
-from .messages import RANGE_PRESETS, range_days, range_label
+from .messages import RANGE_PRESETS, range_days, range_label, stats_menu_description
 
 
 class RangeModal(discord.ui.Modal):
@@ -28,7 +29,7 @@ class RangeModal(discord.ui.Modal):
         self.range_select_custom_id = "stats_range_select_value"
         self.range_select = discord.ui.StringSelect(
             custom_id=self.range_select_custom_id,
-            placeholder="Select reporting range",
+            placeholder=get_message("modals.stats_range.placeholder"),
             min_values=1,
             max_values=1,
             options=select_options,
@@ -36,13 +37,13 @@ class RangeModal(discord.ui.Modal):
 
         components = [
             discord.ui.Label(
-                text="Range",
+                text=get_message("modals.stats_range.field_label"),
                 component=self.range_select,
             )
         ]
 
         super().__init__(
-            title="Select Range",
+            title=get_message("modals.stats_range.title"),
             components=components,
             custom_id="stats_range_modal",
             timeout=300,
@@ -59,7 +60,7 @@ class RangeModal(discord.ui.Modal):
 
         if not range_key or range_key not in RANGE_PRESETS:
             await interaction.response.send_message(
-                "Please select a reporting range from the menu.",
+                get_message("modals.stats_range.invalid_selection"),
                 ephemeral=True,
             )
             return
@@ -89,27 +90,27 @@ class StatsMainView(discord.ui.View):
     def menu_embed(self) -> discord.Embed:
         current_range = range_label(self.range_key)
         return discord.Embed(
-            title="Stats Menu",
-            description=(
-                f"Current range: **{current_range}**\n\n"
-                "Use buttons below:\n"
-                "- **Range**: change reporting period\n"
-                "- **Detailed stats**: send overview + leaderboard + activity chart embeds\n"
-                "- **All Stats**: show full stats snapshot"
-            ),
+            title=get_message("embeds.stats.menu.title"),
+            description=stats_menu_description(current_range),
             color=discord.Color.blurple(),
         )
 
-    @discord.ui.button(label="Range", style=discord.ButtonStyle.secondary)
+    @discord.ui.button(
+        label=get_message("buttons.stats_range.label"),
+        style=discord.ButtonStyle.secondary,
+    )
     async def range_button(self, button: discord.ui.Button, interaction: discord.Interaction) -> None:
         await interaction.response.send_modal(RangeModal(parent_view=self, target_message=interaction.message))
 
-    @discord.ui.button(label="Detailed stats", style=discord.ButtonStyle.primary)
+    @discord.ui.button(
+        label=get_message("buttons.stats_detailed.label"),
+        style=discord.ButtonStyle.primary,
+    )
     async def detailed_stats(self, button: discord.ui.Button, interaction: discord.Interaction) -> None:
         member = interaction.author if isinstance(interaction.author, discord.Member) else None
         if member is None or not member.guild_permissions.administrator:
             await interaction.response.send_message(
-                "Only administrators can use Detailed stats.",
+                get_message("buttons.stats_detailed.msg_error"),
                 ephemeral=True,
             )
             return
@@ -170,7 +171,10 @@ class StatsMainView(discord.ui.View):
 
         await interaction.followup.send(embeds=embeds, files=files if files else None)
 
-    @discord.ui.button(label="All Stats", style=discord.ButtonStyle.secondary)
+    @discord.ui.button(
+        label=get_message("buttons.stats_all.label"),
+        style=discord.ButtonStyle.secondary,
+    )
     async def all_stats(self, button: discord.ui.Button, interaction: discord.Interaction) -> None:
         lookback_days = range_days(self.range_key)
         scope_label = range_label(self.range_key)

@@ -1,4 +1,11 @@
 #
+commands:
+  stats:
+    description: "Open interactive stats menu"
+  top:
+    description: "Show top sessions sorted by duration"
+    fallback_no_data: "No data"
+
 embeds:
   private_voice:
     title: "Your Private Voice Channel"
@@ -20,14 +27,104 @@ embeds:
     no_sessions: "No sessions found yet."
     color: red
     medals: ["🥇", "🥈", "🥉"]
+    unknown_user: "Unknown"
+    line_medal: "{medal} **{channel_name}** *by* {username}\n⏱️ `{duration}`"
+    line_numbered: "{rank}. **{channel_name}** *by* {username}\n⏱️ `{duration}`"
 
   stats:
+    scope_title: "Voice Stats | {scope_label}"
+    chart_title: "Stats | {scope_label} | {chart_type}"
+    date_range_prefix: "Date range: `{date_range_text}`"
     fields:
       total_voice_time: "Total Voice Time"
       sessions: "Sessions"
       unique_participants: "Unique Participants"
       avg_participants: "Avg Participants per Session"
       top_participants: "Top Participants"
+    sessions_value: |
+      Count: `{count}`
+      Avg Duration: `{avg_duration}`
+    top_participant_line: "{rank}. **{name}** - `{duration}`"
+    menu:
+      title: "Stats Menu"
+      current_range_line: "Current range: **{current_range}**"
+      instructions_header: "Use buttons below:"
+      instructions:
+        - "**Range**: change reporting period"
+        - "**Detailed stats**: send overview + leaderboard + activity chart embeds"
+        - "**All Stats**: show full stats snapshot"
+    charts:
+      overview:
+        type: "Overview"
+        details: "High-level comparison chart for voice activity stats."
+      leaderboards:
+        type: "Leaderboards"
+        details: >-
+          Top 5 users by participant + creator hours (ranked on the sum).
+          Orange = time in others' channels (journal); blue = time in channels you created (session duration).
+        empty_field_name: "No leaderboard data"
+        empty_field_value: "No voice activity in this range."
+      activity:
+        type: "Activity"
+        details: "Average active participants by hour of day (local clock in {timezone})."
+        empty_field_name: "Activity"
+        empty_field_value: "No activity data for selected range."
+      weekday_trends:
+        type: "Weekday Trends"
+        details: "Averages by weekday across the selected range."
+        empty_field_name: "Weekday trends"
+        empty_field_value: "No data for selected range."
+    figures:
+      overview:
+        title: "Overview Metrics"
+        legend_title: "Metric"
+        axis_metric: "Metric"
+        axis_value: "Value"
+        metrics:
+          voice_hours: "Voice Hours"
+          sessions: "Sessions"
+          unique_participants: "Unique Participants"
+          avg_participants_per_session: "Avg Participants/Session"
+      leaderboard:
+        title: "Top 5 by combined voice time (participant + created channels)"
+        legend_title: "Color key"
+        axis_hours: "Hours"
+        axis_user: "User"
+        axis_group: "Metric"
+        groups:
+          creators: "Creators"
+          participants: "Participants"
+      activity:
+        title: "Average Activity by Hour (0–23, {timezone})"
+        axis_hour: "Hour of day"
+        axis_hour_local: "Hour of day (local {timezone})"
+        axis_avg_active: "Avg active participants"
+      weekday_trends:
+        title: "Weekday Voice Trends (Mon-Sun)"
+        axis_weekday: "Weekday"
+        axis_value: "Value"
+        axis_metric: "Metric"
+        metric_labels:
+          avg_active_participants: "Avg active participants"
+          avg_time_per_user_hours: "Avg time per user (hours)"
+        summary_header: "Averages:"
+        summary_active_users: "- active users/day: {value:.2f}"
+        summary_time_per_user: "- time per user: {duration}"
+
+stats:
+  ranges:
+    week:
+      label: "Last Week"
+      days: 7
+    month:
+      label: "Last Month"
+      days: 30
+    six_months:
+      label: "Last 6 Months"
+      days: 180
+    all:
+      label: "All Time"
+      days:
 
 modals:
   rename:
@@ -44,6 +141,11 @@ modals:
     msg_error_owner: "Only **{creator_label}** can change the limit!"
     msg_error_invalid: "Invalid number. Must be 0 or a positive integer."
     msg_success: "Channel limit set to {new_limit}."
+  stats_range:
+    title: "Select Range"
+    field_label: "Range"
+    placeholder: "Select reporting range"
+    invalid_selection: "Please select a reporting range from the menu."
 
 buttons:
   rename:
@@ -58,14 +160,12 @@ buttons:
     msg_error: "Only **{creator_label}** can change the limit!"
   set_limit:
     label: "👥*"
-  stats_detailed_metrics:
-    label: "📈Detailed graphs"
-    msg_error: "Only administrators can use this button."
+  stats_range:
+    label: "Range"
+  stats_detailed:
+    label: "Detailed stats"
+    msg_error: "Only administrators can use Detailed stats."
   stats_all:
-    label: "📄All stats"
-    msg_error: "Only administrators can use this button."
-  stats_set_range:
-    label: "📅Range"
-    msg_error: "Some error occurred."
+    label: "All Stats"
 
 no_data: "No data"

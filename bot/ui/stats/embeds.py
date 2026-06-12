@@ -16,7 +16,7 @@ from bot.ui.shared import format_duration_hhmmss
 from database.repositories import MemberRepository
 from utils import get_message
 
-from .messages import stats_embed_scope_title, top_messages
+from .messages import stats_chart_title, stats_date_range_description, stats_embed_scope_title, top_messages
 
 ALL_METRICS_KEY = "all"
 
@@ -28,7 +28,11 @@ def _format_total_voice_time(stats: dict) -> str:
 def _format_sessions(stats: dict) -> str:
     count = stats.get("sessions_count", 0)
     avg_seconds = stats.get("avg_session_seconds", 0)
-    return f"Count: `{count}`\nAvg Duration: `{format_duration_hhmmss(avg_seconds)}`"
+    return get_message(
+        "embeds.stats.sessions_value",
+        count=count,
+        avg_duration=format_duration_hhmmss(avg_seconds),
+    )
 
 
 def _format_unique_participants(stats: dict) -> str:
@@ -41,11 +45,16 @@ def _format_avg_participants(stats: dict) -> str:
 
 def _format_top_participants(stats: dict) -> str:
     participants = stats.get("top_participants") or []
-    lines = "\n".join(
-        f"{idx}. **{row['name']}** - `{format_duration_hhmmss(row['seconds'])}`"
+    lines = [
+        get_message(
+            "embeds.stats.top_participant_line",
+            rank=idx,
+            name=row["name"],
+            duration=format_duration_hhmmss(row["seconds"]),
+        )
         for idx, row in enumerate(participants, start=1)
-    )
-    return lines or get_message("no_data")
+    ]
+    return "\n".join(lines) or get_message("no_data")
 
 
 @dataclass(frozen=True)
@@ -80,15 +89,9 @@ def build_stats_embed(metric_key: str, stats: dict, scope_label: str) -> discord
     return embed
 
 
-def _stats_title(scope_label: str, metric_type: str) -> str:
-    return f"Stats | {scope_label} | {metric_type}"
-
-
-def _stats_description(date_range_text: str, details: str | None = None) -> str:
-    base = f"Date range: `{date_range_text}`"
-    if details:
-        return f"{base}\n{details}"
-    return base
+def _chart_messages(chart_key: str) -> dict:
+    node = get_message(f"embeds.stats.charts.{chart_key}")
+    return node if isinstance(node, dict) else {}
 
 
 async def build_overview_message(
@@ -97,12 +100,10 @@ async def build_overview_message(
     date_range_text: str,
     chart_service: StatsChartService | None = None,
 ) -> tuple[discord.Embed, discord.File | None]:
+    chart = _chart_messages("overview")
     embed = discord.Embed(
-        title=_stats_title(scope_label, "Overview"),
-        description=_stats_description(
-            date_range_text,
-            details="High-level comparison chart for voice activity stats.",
-        ),
+        title=stats_chart_title(scope_label, chart.get("type", "Overview")),
+        description=stats_date_range_description(date_range_text, details=chart.get("details")),
         color=discord.Color.blurple(),
     )
 
@@ -120,12 +121,10 @@ async def build_leaderboard_message(
     date_range_text: str,
     chart_service: StatsChartService | None = None,
 ) -> tuple[discord.Embed, discord.File | None]:
+    chart = _chart_messages("leaderboards")
     embed = discord.Embed(
-        title=_stats_title(scope_label, "Leaderboards"),
-        description=_stats_description(
-            date_range_text,
-            details="Top 5 users by participant + creator hours (ranked on the sum). Orange = time in others' channels (journal); blue = time in channels you created (session duration).",
-        ),
+        title=stats_chart_title(scope_label, chart.get("type", "Leaderboards")),
+        description=stats_date_range_description(date_range_text, details=chart.get("details")),
         color=discord.Color.blurple(),
     )
 
@@ -138,7 +137,11 @@ async def build_leaderboard_message(
         return embed, file
 
     if build_leaderboard_figure(stats) is None:
-        embed.add_field(name="No leaderboard data", value="No voice activity in this range.", inline=False)
+        embed.add_field(
+            name=chart.get("empty_field_name", "No leaderboard data"),
+            value=chart.get("empty_field_value", "No voice activity in this range."),
+            inline=False,
+        )
     return embed, None
 
 
@@ -149,17 +152,20 @@ async def build_activity_message(
     chart_service: StatsChartService | None = None,
     timezone_label: str | None = None,
 ) -> tuple[discord.Embed, discord.File | None]:
+    chart = _chart_messages("activity")
     tz = timezone_label or activity_chart_timezone_label()
+    details = chart.get("details", "").format(timezone=tz) if chart.get("details") else None
     embed = discord.Embed(
-        title=_stats_title(scope_label, "Activity"),
-        description=_stats_description(
-            date_range_text,
-            details=f"Average active participants by hour of day (local clock in {tz}).",
-        ),
+        title=stats_chart_title(scope_label, chart.get("type", "Activity")),
+        description=stats_date_range_description(date_range_text, details=details),
         color=discord.Color.blurple(),
     )
     if not activity_points:
-        embed.add_field(name="Activity", value="No activity data for selected range.", inline=False)
+        embed.add_field(
+            name=chart.get("empty_field_name", "Activity"),
+            value=chart.get("empty_field_value", "No activity data for selected range."),
+            inline=False,
+        )
         return embed, None
 
     file = None
@@ -176,16 +182,20 @@ async def build_weekday_trends_message(
     date_range_text: str,
     chart_service: StatsChartService | None = None,
 ) -> tuple[discord.Embed, discord.File | None]:
+    chart = _chart_messages("weekday_trends")
     points = weekday_trends.get("points", [])
-    details = "Averages by weekday across the selected range."
     embed = discord.Embed(
-        title=_stats_title(scope_label, "Weekday Trends"),
-        description=_stats_description(date_range_text, details=details),
+        title=stats_chart_title(scope_label, chart.get("type", "Weekday Trends")),
+        description=stats_date_range_description(date_range_text, details=chart.get("details")),
         color=discord.Color.blurple(),
     )
 
     if not points:
-        embed.add_field(name="Weekday trends", value="No data for selected range.", inline=False)
+        embed.add_field(
+            name=chart.get("empty_field_name", "Weekday trends"),
+            value=chart.get("empty_field_value", "No data for selected range."),
+            inline=False,
+        )
         return embed, None
 
     file = None
@@ -225,12 +235,26 @@ async def build_top_embed(
     for i, session in enumerate(sessions, start=1):
         duration = session.duration_pretty()
         member_info = members_map.get(session.creator_id) if session.creator_id is not None else None
-        username = (member_info.public_name if member_info else None) or session.created_by or "Unknown"
+        username = (member_info.public_name if member_info else None) or session.created_by or get_message(
+            "embeds.top.unknown_user"
+        )
 
         if i <= 3:
-            line = f"{medals[i - 1]} **{session.channel_name}** *by* {username}\n⏱️ `{duration}`"
+            line = get_message(
+                "embeds.top.line_medal",
+                medal=medals[i - 1],
+                channel_name=session.channel_name,
+                username=username,
+                duration=duration,
+            )
         else:
-            line = f"{i}. **{session.channel_name}** *by* {username}\n⏱️ `{duration}`"
+            line = get_message(
+                "embeds.top.line_numbered",
+                rank=i,
+                channel_name=session.channel_name,
+                username=username,
+                duration=duration,
+            )
         lines.append(line)
 
     if len(lines) > 3:
